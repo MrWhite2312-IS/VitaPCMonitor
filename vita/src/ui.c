@@ -6,6 +6,7 @@
 #include <psp2/rtc.h>
 #include <vita2d.h>
 
+#include "lang.h"
 #include "net.h"
 
 #define SCREEN_W 960
@@ -60,6 +61,28 @@ static void text_right(int right_x, int y, unsigned int c, float s, const char *
 static void text_center(int cx, int y, unsigned int c, float s, const char *t)
 {
     text(cx - vita2d_pgf_text_width(font, s, t) / 2, y, c, s, t);
+}
+
+/* Dibuja t recortado con ".." si no cabe en max_w píxeles. */
+static void text_fit(int x, int y, int max_w, unsigned int c, float s, const char *t)
+{
+    char b[64];
+    int n;
+    if (vita2d_pgf_text_width(font, s, t) <= max_w) {
+        text(x, y, c, s, t);
+        return;
+    }
+    n = (int)strlen(t);
+    if (n > (int)sizeof(b) - 3)
+        n = (int)sizeof(b) - 3;
+    do {
+        n--;
+        while (n > 0 && ((unsigned char)t[n] & 0xC0) == 0x80) /* no cortar un carácter UTF-8 */
+            n--;
+        memcpy(b, t, n);
+        memcpy(b + n, "..", 3);
+    } while (n > 0 && vita2d_pgf_text_width(font, s, b) > max_w);
+    text(x, y, c, s, b);
 }
 
 /* -1 => "--" */
@@ -122,7 +145,7 @@ static void panel_head(int x, int y, int w, const char *title, const char *model
     int bw = w - 32 - 160;
     vita2d_draw_rectangle(x, y, w, 334, C_PANEL);
     text(x + 16, y + 30, C_TEXT, 1.1f, title);
-    text(x + 70, y + 30, C_MUTED, 1.0f, model);
+    text_fit(x + 70, y + 30, x + w - 16 - (x + 70), C_MUTED, 1.0f, model);
     bar(x + 16, y + 46, bw, 24, shown);
     text(x + 16 + bw + 12, y + 67, C_TEXT, 1.1f, fmtv(b, sizeof(b), "%.0f%%", pct));
     if (temp >= 0)
@@ -136,7 +159,7 @@ static void draw_cpu(const AppState *st, int x, int y, int w)
 {
     const VmonStats *s = &st->stats;
     int i, n = s->ncores;
-    panel_head(x, y, w, "CPU", "Ryzen 5 5600G", st->d_cpu, s->cpu, s->ctemp);
+    panel_head(x, y, w, "CPU", s->cpu_name, st->d_cpu, s->cpu, s->ctemp);
     if (n > 0) {
         int gap = 4, cw = (w - 32 - gap * (n - 1)) / n, top = y + 86, h = 60;
         for (i = 0; i < n; i++) {
@@ -146,7 +169,7 @@ static void draw_cpu(const AppState *st, int x, int y, int w)
             vita2d_draw_rectangle(bx, top + h - fh, cw, fh, pct_color(f));
         }
     } else {
-        text(x + 16, y + 120, C_MUTED, 0.9f, "sin datos por hilo");
+        text(x + 16, y + 120, C_MUTED, 0.9f, tr(S_NO_THREAD_DATA));
     }
     graph(x + 16, y + 160, w - 32, 158, &st->h_cpu, &st->h_ctemp);
 }
@@ -155,7 +178,7 @@ static void draw_gpu(const AppState *st, int x, int y, int w)
 {
     const VmonStats *s = &st->stats;
     char b[64], u[16], t[16];
-    panel_head(x, y, w, "GPU", "RTX 3050", st->d_gpu, s->gpu, s->gtemp);
+    panel_head(x, y, w, "GPU", s->gpu_name, st->d_gpu, s->gpu, s->gtemp);
     snprintf(b, sizeof(b), "VRAM %s / %s GB", fmtv(u, sizeof(u), "%.1f", s->vramu),
              fmtv(t, sizeof(t), "%.1f", s->vramt));
     text(x + 16, y + 118, C_TEXT, 1.0f, b);
@@ -168,6 +191,7 @@ static void draw_bottom(const AppState *st)
 {
     const VmonStats *s = &st->stats;
     char b[96], u[16], t[16], p[16];
+    int lx, dx;
     vita2d_draw_rectangle(12, 394, 936, 138, C_PANEL);
 
     text(28, 432, C_TEXT, 1.1f, "RAM");
@@ -176,13 +200,20 @@ static void draw_bottom(const AppState *st)
              fmtv(t, sizeof(t), "%.1f", s->ramt), fmtv(p, sizeof(p), "%.0f%%", s->ram));
     text(580, 432, C_TEXT, 1.1f, b);
 
-    text(28, 494, C_TEXT, 1.1f, "RED");
-    snprintf(b, sizeof(b), "Subida %s KB/s", fmtv(u, sizeof(u), "%.0f", s->up));
-    text(100, 494, C_TEXT, 1.0f, b);
-    snprintf(b, sizeof(b), "Bajada %s KB/s", fmtv(u, sizeof(u), "%.0f", s->down));
-    text(330, 494, C_TEXT, 1.0f, b);
-    text(580, 494, C_TEXT, 1.1f, "DISCO");
-    text(670, 494, s->disk < 0 ? C_MUTED : pct_color(s->disk), 1.1f, fmtv(b, sizeof(b), "%.0f%%", s->disk));
+    /* las etiquetas cambian de largo según el idioma: los valores se corren si hace falta */
+    text(28, 494, C_TEXT, 1.1f, tr(S_NET));
+    lx = 28 + vita2d_pgf_text_width(font, 1.1f, tr(S_NET)) + 14;
+    if (lx < 100)
+        lx = 100;
+    snprintf(b, sizeof(b), tr(S_UP), fmtv(u, sizeof(u), "%.0f", s->up));
+    text(lx, 494, C_TEXT, 1.0f, b);
+    snprintf(b, sizeof(b), tr(S_DOWN), fmtv(u, sizeof(u), "%.0f", s->down));
+    text(lx + 230, 494, C_TEXT, 1.0f, b);
+    text(580, 494, C_TEXT, 1.1f, tr(S_DISK));
+    dx = 580 + vita2d_pgf_text_width(font, 1.1f, tr(S_DISK)) + 14;
+    if (dx < 670)
+        dx = 670;
+    text(dx, 494, s->disk < 0 ? C_MUTED : pct_color(s->disk), 1.1f, fmtv(b, sizeof(b), "%.0f%%", s->disk));
 }
 
 static void draw_header(const AppState *st)
@@ -200,13 +231,13 @@ static void draw_header(const AppState *st)
     text_right(SCREEN_W - 16, 30, C_TEXT, 1.1f, b);
 
     if (st->conn == CONN_OK) {
-        label = "Conectado";
+        label = tr(S_CONNECTED);
         c = C_GREEN;
     } else if (st->conn == CONN_LOST) {
-        label = "Sin señal";
+        label = tr(S_LOST);
         c = RGBA8(0xE8, 0x48, 0x48, 0xFF);
     } else {
-        label = "Esperando";
+        label = tr(S_WAITING);
         c = C_AMBER;
     }
     tx = SCREEN_W - 100 - vita2d_pgf_text_width(font, 1.0f, label);
@@ -218,18 +249,18 @@ static void draw_waiting(const AppState *st, const char *ip)
 {
     char b[96];
     int cx = SCREEN_W / 2;
-    text_center(cx, 170, C_TEXT, 2.0f, "Esperando datos...");
+    text_center(cx, 170, C_TEXT, 2.0f, tr(S_WAITING_DATA));
     if (net_error_text()[0]) {
-        snprintf(b, sizeof(b), "%s %s", st->net_error ? "Error de red:" : "Aviso:", net_error_text());
+        snprintf(b, sizeof(b), "%s %s", st->net_error ? tr(S_NET_ERROR) : tr(S_NOTICE), net_error_text());
         text_center(cx, 230, st->net_error ? C_RED : C_AMBER, 1.1f, b);
     }
-    snprintf(b, sizeof(b), "IP de la Vita: %s", ip[0] ? ip : "(sin WiFi)");
+    snprintf(b, sizeof(b), tr(S_VITA_IP), ip[0] ? ip : tr(S_NO_WIFI));
     text_center(cx, 280, C_TEXT, 1.3f, b);
-    snprintf(b, sizeof(b), "Puerto UDP: %d", VMON_PORT);
+    snprintf(b, sizeof(b), tr(S_UDP_PORT), VMON_PORT);
     text_center(cx, 320, C_TEXT, 1.3f, b);
-    text_center(cx, 380, C_MUTED, 1.0f, "En el PC ejecuta:  python vitamon_server.py");
-    text_center(cx, 410, C_MUTED, 1.0f, "Si no llega nada, usa  --target <IP de la Vita>");
-    text_center(cx, 510, C_MUTED, 0.9f, "START: salir");
+    text_center(cx, 380, C_MUTED, 1.0f, tr(S_HINT_RUN));
+    text_center(cx, 410, C_MUTED, 1.0f, tr(S_HINT_TARGET));
+    text_center(cx, 510, C_MUTED, 0.9f, tr(S_HINT_KEYS));
 }
 
 static void draw_compact(const AppState *st)
@@ -258,8 +289,8 @@ static void draw_debug(const AppState *st, const char *ip)
     const char *p = st->last_line;
     int y = SCREEN_H - 150, len = (int)strlen(p);
     vita2d_draw_rectangle(0, y - 26, SCREEN_W, SCREEN_H - y + 26, RGBA8(0, 0, 0, 220));
-    snprintf(b, sizeof(b), "Origen: %s   Paquetes/s: %d   IP Vita: %s", st->from_ip[0] ? st->from_ip : "--",
-             st->pps, ip[0] ? ip : "--");
+    snprintf(b, sizeof(b), "%s: %s   %s: %d   IP Vita: %s", tr(S_ORIGIN), st->from_ip[0] ? st->from_ip : "--",
+             tr(S_PPS), st->pps, ip[0] ? ip : "--");
     text(12, y, RGBA8(0xFF, 0xFF, 0x80, 0xFF), 0.9f, b);
     /* la línea cruda, cortada en renglones de 110 caracteres */
     while (len > 0 && y < SCREEN_H - 20) {
@@ -271,6 +302,16 @@ static void draw_debug(const AppState *st, const char *ip)
         p += n;
         len -= n;
     }
+}
+
+static void draw_toast(void)
+{
+    char b[64];
+    int w;
+    snprintf(b, sizeof(b), tr(S_LANGUAGE), tr(S_LANG_NAME));
+    w = vita2d_pgf_text_width(font, 1.2f, b) + 48;
+    vita2d_draw_rectangle((SCREEN_W - w) / 2, 440, w, 50, RGBA8(0x24, 0x2C, 0x36, 0xF0));
+    text_center(SCREEN_W / 2, 474, RGBA8(0xFF, 0xFF, 0xFF, 0xFF), 1.2f, b);
 }
 
 void ui_init(void)
@@ -302,11 +343,13 @@ void ui_draw(const AppState *st, const char *vita_ip)
         draw_header(st);
         if (st->conn == CONN_LOST) {
             vita2d_draw_rectangle(280, 236, 400, 56, RGBA8(0x5A, 0x16, 0x16, 0xF0));
-            text_center(SCREEN_W / 2, 272, RGBA8(0xFF, 0xFF, 0xFF, 0xFF), 1.2f, "Sin señal del PC");
+            text_center(SCREEN_W / 2, 272, RGBA8(0xFF, 0xFF, 0xFF, 0xFF), 1.2f, tr(S_LOST_BANNER));
         }
     }
     if (st->debug)
         draw_debug(st, vita_ip);
+    if (st->lang_toast > 0)
+        draw_toast();
 
     vita2d_end_drawing();
     vita2d_wait_rendering_done();

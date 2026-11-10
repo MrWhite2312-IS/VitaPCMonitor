@@ -38,6 +38,15 @@ static void test_valid(void)
     CHECK(s.ts == 1731258000.0);
 }
 
+static void test_names(void)
+{
+    VmonStats s;
+    CHECK(vmon_parse("VMON1;host=PC;cpun=Ryzen 5 5600G;gpun=RTX 3050;cpu=1", &s) == 0);
+    CHECK(!strcmp(s.cpu_name, "Ryzen 5 5600G") && !strcmp(s.gpu_name, "RTX 3050"));
+    CHECK(vmon_parse("VMON1;host=PC;cpu=1", &s) == 0); /* servidor viejo: sin nombres */
+    CHECK(s.cpu_name[0] == '\0' && s.gpu_name[0] == '\0');
+}
+
 static void test_minus_one(void)
 {
     VmonStats s;
@@ -125,6 +134,7 @@ int main(int argc, char **argv)
         return r ? 1 : 0;
     }
     test_valid();
+    test_names();
     test_minus_one();
     test_unknown_keys();
     test_bad_prefix();

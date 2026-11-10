@@ -3,3 +3,10 @@ __pycache__/
 *.pyc
 .venv/
 vita/tests/test_protocol
+server/build/
+server/dist/
+server/*.spec
+.venv-build/
+.DS_Store
+.vscode/
+vita/tests/test_lang

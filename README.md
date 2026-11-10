@@ -1,131 +1,228 @@
-# VitaMon: monitor de PC en la PS Vita
+<div align="center">
 
-El PC (Windows) manda sus métricas por UDP broadcast una vez por segundo, y la Vita las muestra a pantalla completa: CPU, GPU, temperaturas, RAM, red y disco.
+# VitaMon
+
+**Turn your PS Vita into a live hardware monitor for your Windows PC.**
+
+CPU, GPU, temperatures, RAM, network and disk on the Vita's screen, updated every second over WiFi.
+
+[![Build](https://github.com/MrWhite2312-IS/VitaPCMonitor/actions/workflows/build.yml/badge.svg)](https://github.com/MrWhite2312-IS/VitaPCMonitor/actions/workflows/build.yml)
+[![Latest release](https://img.shields.io/github/v/release/MrWhite2312-IS/VitaPCMonitor?label=download)](https://github.com/MrWhite2312-IS/VitaPCMonitor/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+**English** · [Español](README.es.md)
+
+</div>
+
+<!-- Add a photo of the Vita running VitaMon here, e.g.:
+<p align="center"><img src="docs/vita.jpg" alt="VitaMon running on a PS Vita" width="640"></p>
+-->
+
+## Features
+
+- **CPU:** total load, a bar per thread, temperature and the CPU model name.
+- **GPU (NVIDIA):** load, temperature, VRAM used/total and core clock.
+- **RAM, network** (upload/download KB/s) and **disk** activity.
+- **60-second graphs** for CPU and GPU load and temperature.
+- **Compact view** with four big numbers, readable from across the desk.
+- **No setup on the network side:** the PC broadcasts on your LAN and the Vita picks it up. No IPs to type in most cases.
+- **Small Windows app with a window, not a console.** It can start with Windows and runs minimized.
+- **6 languages** on both the Vita and the PC: English, Español, Português, Français, Deutsch, Italiano.
+- **Local only:** data goes from your PC to your Vita over UDP on your own network. Nothing is sent to the internet.
+
+## Requirements
+
+- A PS Vita (or PS TV) with **HENkaku / Ensō** and **VitaShell**.
+- A **Windows 10/11** PC on the same network as the Vita (WiFi or Ethernet).
+- Optional: an **NVIDIA** GPU for GPU stats, and **LibreHardwareMonitor** for CPU temperature ([details](#optional-sensors)).
+
+## Quick start
+
+### 1. Download
+
+Get both files from the [latest release](https://github.com/MrWhite2312-IS/VitaPCMonitor/releases/latest):
+
+| File | Goes on |
+|------|---------|
+| `VitaMon.vpk` | the PS Vita |
+| `VitaMon.exe` | the Windows PC |
+
+### 2. Install on the Vita
+
+1. Copy `VitaMon.vpk` to the Vita with VitaShell:
+   - **WiFi (FTP):** press SELECT in VitaShell, then open the `ftp://IP:1337` address it shows in your PC's file explorer and copy the VPK to `ux0:data/`.
+   - **USB:** press START in VitaShell → *USB connection*, then copy the VPK to the drive that appears on the PC.
+2. In VitaShell, select the VPK, press ✕ and confirm the install. **VitaMon** appears on the home screen.
+
+### 3. Run on the PC
+
+1. Put `VitaMon.exe` in any folder. It does not need to be installed.
+2. Double-click it. A small window opens and starts sending right away.
+3. The first time, Windows asks about network access: allow it on **Private networks**.
+
+<p align="center"><img src="docs/ventana.png" alt="VitaMon window on Windows" width="420"></p>
+
+| Option | What it does |
+|--------|--------------|
+| **Language** | Changes the window language. |
+| **Vita IP** | Leave it empty. You only need it if the Vita gets nothing ([see below](#troubleshooting)). |
+| **Start / Stop** | Starts or stops sending. |
+| **Start sending when opened** | No need to press Start every time. |
+| **Open when Windows starts** | Launches VitaMon minimized at login. |
+| **Data sources** | Shows whether GPU and CPU-temperature data are available, and how to fix it if not. |
+
+Settings are saved in `%APPDATA%\VitaMon\config.json`.
+
+### 4. Open VitaMon on the Vita
+
+Within a couple of seconds the status changes from **Waiting** to **Connected** and the stats appear.
+
+| Button | Action |
+|--------|--------|
+| SELECT | Change language (remembered for next time) |
+| □ | Compact view: CPU %, CPU °C, GPU %, GPU °C in big numbers |
+| △ | Debug overlay: last packet, packets/s, IP addresses |
+| START | Quit |
+
+The first time, the app uses the Vita's system language (English if it isn't one of the six). The status in the corner shows **Waiting** (nothing received yet, with the Vita's IP), **Connected**, or **No signal** (no data for 3 s; the last values stay on screen, dimmed).
+
+## Optional sensors
+
+CPU load, RAM, network and disk always work. Two things need a bit more:
+
+### CPU temperature: LibreHardwareMonitor
+
+Windows does not expose CPU temperature to normal programs, so VitaMon reads it from [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor):
+
+1. Run LibreHardwareMonitor **as administrator**.
+2. Enable *Options → Remote Web Server → Run* (port 8085).
+3. Check that `http://localhost:8085/data.json` opens in your browser.
+
+Without it, CPU temperature shows as `--`. The VitaMon window tells you whether it is detected.
+
+### GPU: NVIDIA only (for now)
+
+GPU stats come from `nvidia-smi`, which is installed with the NVIDIA driver. On AMD or Intel GPUs the GPU panel shows `--` (the model name still appears). AMD/Intel support is a welcome contribution: the GPU reader is isolated in `read_gpu_nvidia()` in [`server/vitamon_server.py`](server/vitamon_server.py).
+
+## Troubleshooting
+
+**The Vita stays on "Waiting for data"**
+
+1. Make sure the PC and the Vita are on the same network (for example, both on `192.168.1.x`).
+2. Make sure your network is set to **Private** in Windows (*Settings → Network & Internet → Properties*).
+3. Many routers block broadcast traffic, especially between WiFi and Ethernet or on guest networks. Type the IP shown on the Vita's waiting screen into **Vita IP**, then press **Stop** and **Start**.
+4. If it still doesn't work, allow VitaMon through the firewall (PowerShell as administrator):
+
+   ```powershell
+   New-NetFirewallRule -DisplayName "VitaMon UDP" -Direction Outbound -Protocol UDP -RemotePort 10555 -Action Allow -Profile Private
+   ```
+
+**CPU temperature is `--`:** LibreHardwareMonitor isn't running, wasn't started as administrator, or its Remote Web Server is off.
+
+**GPU is `--`:** not an NVIDIA GPU, or `nvidia-smi` doesn't work. Try running `nvidia-smi` in a terminal.
+
+**"VitaMon is already open":** there is already a VitaMon window, maybe minimized in the taskbar. Only one can run at a time.
+
+**Windows SmartScreen or antivirus warning:** the `.exe` is not code-signed, and Python apps packaged with PyInstaller sometimes trigger false positives. Click *More info → Run anyway*. You can check the source and the [build log](https://github.com/MrWhite2312-IS/VitaPCMonitor/actions/workflows/build.yml), or [build it yourself](#build-the-windows-app) or [run it from source](#run-from-source).
+
+## How it works
 
 ```
-server/   servidor del PC (Python + psutil)
-vita/     app homebrew (C + VitaSDK + vita2d)
-tools/    generador de los assets de LiveArea
+psutil ────────────────┐
+nvidia-smi ────────────┼ ──► VitaMon.exe ──── UDP :10555, 1 line/s ───► VitaMon
+LibreHardwareMonitor ──┘        (PC)                                    (PS Vita, C + vita2d)
 ```
 
-## 1. Compilar la app de la Vita (macOS / Linux)
+The PC sends one plain-text line per second as a UDP broadcast (or to a single IP). The Vita listens on port 10555, parses the line and draws it with [vita2d](https://github.com/xerpi/libvita2d). To save battery, the app runs the Vita's CPU at 111 MHz.
 
-### Instalar VitaSDK con vdpm
+<details>
+<summary>Protocol (v1)</summary>
+
+One ASCII line per datagram, under 1024 bytes:
+
+```
+VMON1;host=DESKTOP;cpun=Ryzen 5 5600G;gpun=RTX 3050;cpu=23.4;cores=12,30,...;ctemp=54.0;ram=55.1;ramu=8.8;ramt=16.0;gpu=12;gtemp=60;vramu=1.2;vramt=8.0;gclk=1500;up=123.4;down=456.7;disk=40.2;ts=1731258000
+```
+
+`-1` means "not available". The app ignores unknown keys and any datagram that doesn't start with `VMON1;`, so new fields can be added without breaking older versions.
+
+</details>
+
+## Building from source
+
+```
+server/   PC app (Python + psutil, tkinter window)
+vita/     Vita homebrew app (C + VitaSDK + vita2d)
+tools/    LiveArea asset generator
+```
+
+Every push builds both files on GitHub Actions. Pushing a `v*` tag publishes them as a release.
+
+### Run from source
+
+Requires Python 3.10+.
+
+```bat
+cd server
+pip install -r requirements.txt
+pythonw vitamon_gui.py
+```
+
+`vitamon_gui.py` accepts `--start` and `--minimized`. There is also a console version: `python vitamon_server.py --verbose` (options: `--port`, `--interval`, `--target VITA_IP`, `--lhm-url`, `--verbose`).
+
+### Build the Windows app
+
+From the `server` folder:
+
+```bat
+build_exe.bat
+```
+
+It creates a virtual environment in `server\.venv-build`, installs psutil, PyInstaller and Pillow, and writes `server\dist\VitaMon.exe` (a single file with no console).
+
+### Build the Vita app
+
+Install [VitaSDK](https://vitasdk.org/) (on macOS/Linux, `vdpm` is enough) with the `zlib libpng libjpeg-turbo libvita2d` packages, plus `cmake`:
 
 ```bash
 export VITASDK=$HOME/vitasdk
 export PATH=$VITASDK/bin:$PATH
-git clone https://github.com/vitasdk/vdpm
-cd vdpm
+git clone https://github.com/vitasdk/vdpm && cd vdpm
 ./bootstrap-vitasdk.sh
 vdpm install zlib libpng libjpeg-turbo libvita2d
 ```
 
-Con `VITASDK` en tu carpeta personal no hace falta sudo (el default `/usr/local/vitasdk` sí lo pide). Solo se instalan los paquetes que usa VitaMon. El `install-all.sh` del repo instala más de 100 y falla con el cliente pacman nuevo de vdpm. Agrega los dos `export` a tu `~/.zshrc` o `~/.bashrc`. También necesitas `cmake` (en macOS: `brew install cmake`).
-
-### Compilar
+Then:
 
 ```bash
 cd vita && mkdir build && cd build && cmake .. && make
 ```
 
-Eso produce `vita/build/VitaMon.vpk`.
+This produces `vita/build/VitaMon.vpk`. Or use Docker: `docker run --rm -v "$PWD":/src -w /src/vita vitasdk/vitasdk sh -c "mkdir -p build && cd build && cmake .. && make"`.
 
-### Instalar en la Vita
+LiveArea assets live in `vita/sce_sys/`. To regenerate them: `pip install pillow && python tools/make_assets.py`.
 
-1. Abre **VitaShell** en la Vita (requiere HENkaku/Ensō).
-2. Pasa el VPK:
-   - **FTP:** pulsa SELECT en VitaShell, y conéctate desde el PC a la dirección `ftp://IP:1337` que aparece en pantalla. Copia el VPK a `ux0:data/`.
-   - **USB:** pulsa START → *USB connection*, y copia el VPK a la unidad que aparece.
-3. En VitaShell, ve al VPK, pulsa X e instala.
-
-### Assets de LiveArea
-
-Ya están en `vita/sce_sys/`. Para regenerarlos: `pip install pillow && python tools/make_assets.py` (salen como PNG 8-bit indexados, que es lo que acepta la Vita).
-
-## 2. Servidor en el PC (Windows)
-
-Requiere Python 3.10+.
-
-```bat
-cd server
-pip install -r requirements.txt
-python vitamon_server.py --verbose
-```
-
-Al arrancar muestra el puerto, el modo (broadcast o unicast) y qué fuentes encontró (psutil, nvidia-smi, LHM).
-
-Opciones: `--port 10555`, `--interval 1.0`, `--target IP_VITA`, `--lhm-url http://localhost:8085/data.json`, `--verbose`.
-
-`run_vitamon.bat` lo inicia con doble clic (si existe `server\.venv`, lo activa primero).
-
-### Firewall de Windows
-
-La primera vez, Windows pregunta si permite Python: marca **Redes privadas**. Si no preguntó, crea una regla de salida desde PowerShell como administrador:
-
-```powershell
-New-NetFirewallRule -DisplayName "VitaMon UDP" -Direction Outbound -Protocol UDP -RemotePort 10555 -Action Allow -Profile Private
-```
-
-Asegúrate de que tu red WiFi/Ethernet esté marcada como **Privada**.
-
-### Temperatura de la CPU: LibreHardwareMonitor
-
-psutil no lee temperaturas en Windows, así que se usan las de [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor):
-
-1. Ejecuta LibreHardwareMonitor **como administrador**.
-2. Activa *Options → Remote Web Server → Run* (puerto 8085).
-3. Comprueba que `http://localhost:8085/data.json` abre en el navegador.
-
-Sin esto, la temperatura de la CPU aparece como `--`.
-
-### GPU NVIDIA
-
-Se lee con `nvidia-smi`, que viene con el driver. Si no está en el PATH, la GPU aparece como `--` (el servidor lo reintenta cada 30 s).
-
-### Arrancar con Windows
-
-- **Lo simple:** pulsa Win+R, escribe `shell:startup` y crea ahí un acceso directo a `server\run_vitamon.bat`.
-- **Sin ventana / antes de iniciar sesión:** Programador de tareas → *Crear tarea básica* → desencadenador *Al iniciar sesión* → acción *Iniciar un programa*: `pythonw.exe`, argumentos `vitamon_server.py`, *Iniciar en*: la carpeta `server`.
-
-## 3. Uso en la Vita
-
-| Botón | Acción |
-|-------|--------|
-| START | Salir |
-| □ | Vista compacta (CPU %, CPU °C, GPU %, GPU °C en grande) |
-| △ | Overlay de debug (última línea recibida, paquetes/s, IP de origen) |
-
-Estados: **Esperando** (no llegó nada aún; muestra la IP de la Vita), **Conectado**, **Sin señal** (más de 3 s sin datos; muestra los últimos valores atenuados).
-
-## 4. Pruebas sin la Vita
+### Tests
 
 ```bash
-# test del parser C en el host
+# protocol parser
 cd vita/tests && gcc -std=c11 -Wall -I../src ../src/protocol.c test_protocol.c -o test_protocol -lm && ./test_protocol
-
-# una línea real del servidor pasada por el parser C
+# translations: nothing missing, format specifiers match
+cd vita/tests && gcc -std=c11 -Wall -I../src ../src/lang.c test_lang.c -o test_lang && ./test_lang
+# a real server line through the C parser
 cd server && python test_server_line.py
-
-# ver lo que manda el servidor (en otra terminal u otra máquina)
+# see what the PC is sending (from another terminal or machine)
 python server/test_listener.py
 ```
 
-## 5. Troubleshooting
+## Contributing
 
-- **"Esperando datos" para siempre:**
-  - Corre `test_listener.py` en otra máquina de la misma red. Si tampoco recibe, es el firewall o la red.
-  - Revisa que el PC y la Vita estén en la misma subred (por ejemplo, ambos en `192.168.1.x`).
-  - Algunos routers bloquean broadcast (aislamiento de AP). Usa unicast: `python vitamon_server.py --target IP_VITA` (la IP sale en la pantalla de espera).
-- **Temperatura de CPU en `--`:** LibreHardwareMonitor no está corriendo, no se abrió como admin, o el Remote Web Server está apagado.
-- **GPU en `--`:** `nvidia-smi` no está en el PATH. Prueba `nvidia-smi` en una terminal.
+Issues and pull requests are welcome. Some good places to start:
 
-## Protocolo (v1)
+- **New language or translation fixes:** the Vita strings are in [`vita/src/lang.c`](vita/src/lang.c) (add the language to the `Lang` enum in `lang.h`), and the PC strings are in [`server/i18n.py`](server/i18n.py). `test_lang` checks that nothing is missing. The Vita's built-in font covers Latin scripts (accents, ñ, ç, ß) but not Japanese, Chinese or Korean.
+- **AMD / Intel GPU support** on the PC side.
+- **Linux/macOS sender:** the console server already runs there (CPU temperature through psutil), but it hasn't been tested much.
 
-Una línea ASCII por datagrama, menor a 1024 bytes:
+## License
 
-```
-VMON1;host=DESKTOP-PC;cpu=23.4;cores=12,30,...;ctemp=54.0;ram=55.1;ramu=8.8;ramt=16.0;gpu=12;gtemp=60;vramu=1.2;vramt=8.0;gclk=1500;up=123.4;down=456.7;disk=40.2;ts=1731258000
-```
-
-`-1` significa "no disponible". La app ignora claves desconocidas y cualquier datagrama que no empiece con `VMON1;`.
+[MIT](LICENSE)
