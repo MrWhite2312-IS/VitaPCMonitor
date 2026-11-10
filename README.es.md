@@ -154,7 +154,7 @@ build_exe.bat
 
 Crea un entorno en `server\.venv-build`, instala psutil, PyInstaller y Pillow, y genera `server\dist\VitaMon.exe` (un solo archivo, sin consola, con el icono de la app) y `server\dist\VitaMon-windows.zip` (la misma app en carpeta).
 
-GitHub Actions compila el VPK y el EXE en cada push. Al subir una etiqueta `v*` (por ejemplo `git tag v1.3.0-beta.1 && git push origin v1.3.0-beta.1`) los publica como *Release*; si la etiqueta lleva guion, como beta. Antes de etiquetar, pon en `APP_VERSION` de [`server/version.py`](server/version.py) la etiqueta sin la `v` (el CI lo comprueba) y actualiza `VITA_VERSION` en `vita/CMakeLists.txt`.
+GitHub Actions compila el VPK y el EXE en cada push. Al subir una etiqueta `v*` (por ejemplo `git tag v1.4.0-beta.1 && git push origin v1.4.0-beta.1`) los publica como *Release*; si la etiqueta lleva guion, como beta. Antes de etiquetar, pon en `APP_VERSION` de [`server/version.py`](server/version.py) la etiqueta sin la `v` (el CI lo comprueba) y actualiza `VITA_VERSION` en `vita/CMakeLists.txt`.
 
 ### Usar el servidor desde la consola
 
