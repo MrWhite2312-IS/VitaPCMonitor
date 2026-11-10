@@ -23,7 +23,7 @@ typedef struct {
     char last_line[VMON_MAX_LINE];
     char from_ip[16];
     int pps;
-    int lang_toast;           /* frames que queda visible el aviso de idioma */
+    int lang_toast;           /* != 0 mientras se ve el aviso de idioma */
 } AppState;
 
 void hist_push(History *h, float v);

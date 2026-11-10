@@ -2,7 +2,8 @@
 """VitaMon con ventana: lo mismo que vitamon_server.py pero sin consola.
 
 Es lo que se empaqueta como VitaMon.exe (ver build_exe.bat).
-Opciones: --start (empieza a enviar al abrir), --minimized (abre minimizado).
+Opciones: --start (empieza a enviar al abrir), --minimized (abre minimizado, o en la bandeja
+si esa opción está activa).
 """
 
 import ipaddress
@@ -17,9 +18,17 @@ from tkinter import messagebox, ttk
 import vitamon_server as vs
 from i18n import LANGS, Translator
 
+try:  # bandeja del sistema (opcional: sin pystray la app funciona igual, sin esa opción)
+    import pystray
+    from PIL import Image
+    TRAY_ERROR = None
+except Exception as e:  # ImportError, o un backend que falla al cargar
+    pystray = None
+    TRAY_ERROR = e
+
 APP_NAME = "VitaMon"
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
-DEFAULTS = {"lang": None, "target": "", "port": 10555, "auto_send": True}
+DEFAULTS = {"lang": None, "target": "", "port": 10555, "auto_send": True, "tray": True}
 
 
 # ---------- Rutas y configuración ----------
@@ -43,6 +52,17 @@ def load_config():
     except (OSError, ValueError):
         pass
     return cfg
+
+
+def log_error(msg):
+    """El .exe no tiene consola: los errores van a %APPDATA%\\VitaMon\\error.log."""
+    import datetime
+    try:
+        os.makedirs(os.path.dirname(config_path()), exist_ok=True)
+        with open(os.path.join(os.path.dirname(config_path()), "error.log"), "a", encoding="utf-8") as f:
+            f.write(f"[{datetime.datetime.now():%Y-%m-%d %H:%M:%S}] {msg}\n")
+    except OSError:
+        pass
 
 
 def save_config(cfg):
@@ -120,24 +140,33 @@ class App:
         self.gpu_ok = None
         self.lhm_ok = None
         self.labels = []  # (widget, clave) para retraducir al cambiar de idioma
+        self.tray = None  # pystray.Icon mientras la opción de bandeja esté activa
 
         root.minsize(520, 0)
+        self.icon_path = None
         for icon in (resource("icon0.png"), resource(os.path.join("..", "vita", "sce_sys", "icon0.png"))):
             try:
                 root.iconphoto(True, tk.PhotoImage(file=icon))
+                self.icon_path = icon
                 break
             except tk.TclError:
                 pass
         self._build()
         self._retranslate()
         root.protocol("WM_DELETE_WINDOW", self.on_close)
+        root.bind("<Unmap>", self._on_unmap)
         root.after(150, self._poll)
         self._check_sources_async()
+        if self.tray_enabled:
+            self._tray_start()
 
         if start_now or cfg.get("auto_send"):
             root.after(300, self.start)
         if minimized:
-            root.iconify()
+            if self.tray_enabled:
+                root.withdraw()  # directo a la bandeja, sin botón en la barra de tareas
+            else:
+                root.iconify()
 
     # --- construcción ---
 
@@ -184,14 +213,20 @@ class App:
         if sys.platform != "win32":
             login.state(["disabled"])
         self.labels.append((login, "run_at_login"))
+        self.tray_var = tk.BooleanVar(value=bool(self.cfg.get("tray")) and pystray is not None)
+        tray = ttk.Checkbutton(top, variable=self.tray_var, command=self.on_tray_option)
+        tray.grid(row=6, column=0, columnspan=2, sticky="w", **pad)
+        if pystray is None:
+            tray.state(["disabled"])
+        self.labels.append((tray, "tray_option"))
 
         # botón
         self.btn = ttk.Button(top, command=self.toggle)
-        self.btn.grid(row=6, column=0, columnspan=2, sticky="ew", padx=10, pady=8)
+        self.btn.grid(row=7, column=0, columnspan=2, sticky="ew", padx=10, pady=8)
 
         # estado
         st = ttk.LabelFrame(top, padding=8)
-        st.grid(row=7, column=0, columnspan=2, sticky="ew", **pad)
+        st.grid(row=8, column=0, columnspan=2, sticky="ew", **pad)
         self.labels.append((st, "status"))
         self.status = tk.Label(st, anchor="w", font=("Segoe UI", 10, "bold"))
         self.status.pack(fill="x")
@@ -202,7 +237,7 @@ class App:
 
         # fuentes
         src = ttk.LabelFrame(top, padding=8)
-        src.grid(row=8, column=0, columnspan=2, sticky="ew", **pad)
+        src.grid(row=9, column=0, columnspan=2, sticky="ew", **pad)
         src.columnconfigure(0, weight=1)
         self.labels.append((src, "sources"))
         self._label(src, "src_gpu").grid(row=0, column=0, sticky="w")
@@ -216,8 +251,8 @@ class App:
 
         # registro
         lg = ttk.LabelFrame(top, padding=6)
-        lg.grid(row=9, column=0, columnspan=2, sticky="nsew", **pad)
-        top.rowconfigure(9, weight=1)
+        lg.grid(row=10, column=0, columnspan=2, sticky="nsew", **pad)
+        top.rowconfigure(10, weight=1)
         self.labels.append((lg, "log"))
         self.log_box = tk.Text(lg, height=6, width=60, state="disabled", font=("Consolas", 9), wrap="word")
         self.log_box.pack(fill="both", expand=True)
@@ -232,6 +267,8 @@ class App:
         self.btn.configure(text=t("stop") if self.running else t("start"))
         self._refresh_status()
         self._refresh_sources()
+        if self.tray:
+            self.tray.update_menu()
 
     @property
     def running(self):
@@ -247,6 +284,64 @@ class App:
             self.status.configure(text="● " + self.t("stopped"), fg="#888")
         n = self.sender.sent if self.sender else 0
         self.packets.configure(text=self.t("packets", n=n))
+        if self.tray:  # texto al pasar el ratón por el icono (máx. 127 caracteres en Windows)
+            tip = f"{APP_NAME}: " + self.status.cget("text").lstrip("● ")
+            if self.tray.title != tip[:127]:
+                self.tray.title = tip[:127]
+
+    # --- bandeja del sistema ---
+
+    @property
+    def tray_enabled(self):
+        return pystray is not None and bool(self.tray_var.get())
+
+    def _tray_start(self):
+        if self.tray or pystray is None:
+            return
+        try:
+            image = Image.open(self.icon_path) if self.icon_path else Image.new("RGB", (64, 64), "#3cc86e")
+        except OSError:
+            image = Image.new("RGB", (64, 64), "#3cc86e")
+        # los clics llegan en el hilo de pystray: se pasan a la ventana por la cola de eventos
+        post = lambda action: (lambda icon, item: self.events.put(("tray", action)))
+        menu = pystray.Menu(
+            pystray.MenuItem(lambda item: self.t("tray_show"), post("show"), default=True),
+            pystray.MenuItem(lambda item: self.t("stop") if self.running else self.t("start"), post("toggle")),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem(lambda item: self.t("tray_quit"), post("quit")),
+        )
+        try:
+            self.tray = pystray.Icon(APP_NAME, image, APP_NAME, menu)
+            self.tray.run_detached()
+        except Exception as e:
+            log_error(f"no se pudo crear el icono de la bandeja: {e!r}")
+            self.tray = None
+            return
+        self._refresh_status()
+
+    def _tray_stop(self):
+        if self.tray:
+            self.tray.stop()
+            self.tray = None
+
+    def _on_unmap(self, event):
+        # al minimizar con la opción activa: ocultar la ventana y dejar solo el icono
+        if event.widget is self.root and self.tray_enabled and self.root.state() == "iconic":
+            self._tray_start()
+            self.root.after(0, self.root.withdraw)
+
+    def show_window(self):
+        self.root.deiconify()
+        self.root.lift()
+        self.root.focus_force()
+
+    def on_tray_option(self):
+        self.cfg["tray"] = bool(self.tray_var.get())
+        self._save()
+        if self.tray_enabled:
+            self._tray_start()
+        else:
+            self._tray_stop()
 
     def _refresh_sources(self):
         def show(lbl, ok):
@@ -377,6 +472,14 @@ class App:
                 elif ev[0] == "sources":
                     self.gpu_ok, self.lhm_ok = ev[1], ev[2]
                     self._refresh_sources()
+                elif ev[0] == "tray":
+                    if ev[1] == "show":
+                        self.show_window()
+                    elif ev[1] == "toggle":
+                        self.toggle()
+                    elif ev[1] == "quit":
+                        self.on_close()
+                        return
         except queue.Empty:
             pass
         if self.running:
@@ -387,6 +490,7 @@ class App:
         self._save()
         if self.running:
             self.stop_evt.set()
+        self._tray_stop()
         self.root.destroy()
 
 
@@ -404,8 +508,16 @@ def main():
             ctypes.windll.shcore.SetProcessDpiAwareness(1)
         except Exception:
             pass
+    import traceback
+    if TRAY_ERROR is not None:
+        log_error(f"bandeja no disponible: {TRAY_ERROR!r}")
     root = tk.Tk()
-    App(root, cfg, start_now="--start" in args, minimized="--minimized" in args)
+    root.report_callback_exception = lambda *exc: log_error("".join(traceback.format_exception(*exc)))
+    try:
+        App(root, cfg, start_now="--start" in args, minimized="--minimized" in args)
+    except Exception:
+        log_error(traceback.format_exc())
+        raise
     root.mainloop()
 
 

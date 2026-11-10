@@ -263,24 +263,65 @@ static void draw_waiting(const AppState *st, const char *ip)
     text_center(cx, 510, C_MUTED, 0.9f, tr(S_HINT_KEYS));
 }
 
+/* Vista compacta: una métrica grande (valor + unidad), mini gráfica de 60 s y barra.
+ * is_temp: escala 30-100 °C y colores de temperatura; si no, 0-100 %. */
+static void compact_metric(int x, int y, int w, float v, float shown, int is_temp, const History *h)
+{
+    char b[16];
+    const char *unit = is_temp ? "°C" : "%";
+    unsigned int c = v < 0 ? C_MUTED : is_temp ? temp_color(v) : pct_color(v);
+    float lo = is_temp ? 30 : 0, f;
+    int nw, gx;
+
+    /* número grande y unidad pegada a su línea base */
+    fmtv(b, sizeof(b), "%.0f", v);
+    text(x, y + 112, c, 4.2f, b);
+    nw = vita2d_pgf_text_width(font, 4.2f, b);
+    if (v >= 0)
+        text(x + nw + 6, y + 112, c, 1.8f, unit);
+
+    /* mini gráfica a la derecha del número */
+    gx = x + 210;
+    if (gx + 120 < x + w) {
+        vita2d_draw_rectangle(gx, y + 22, x + w - gx, 92, C_BG);
+        vita2d_draw_line(gx, y + 22 + 46, x + w, y + 22 + 46, C_TRACK);
+        plot(gx, y + 22, x + w - gx, 92, h, lo, 100, is_temp ? C_LINE_TEMP : C_LINE_PCT);
+    }
+
+    /* barra: en °C muestra dónde está entre 30 y 100 */
+    f = is_temp ? (v < 0 ? 0 : (v - lo) / (100 - lo) * 100) : shown;
+    f = f < 0 ? 0 : f > 100 ? 100 : f;
+    vita2d_draw_rectangle(x, y + 134, w, 14, C_TRACK);
+    vita2d_draw_rectangle(x, y + 134, w * f / 100.0f, 14, c);
+}
+
+static void compact_panel(int y, const char *title, const char *model, const char *extra, float pct,
+                          float shown, float temp, const History *hp, const History *ht)
+{
+    const int x = 12, w = 936, half = (w - 48) / 2;
+    vita2d_draw_rectangle(x, y, w, 232, C_PANEL);
+    text(x + 20, y + 36, C_TEXT, 1.4f, title);
+    text_fit(x + 90, y + 36, 520, C_MUTED, 1.1f, model);
+    text_right(x + w - 20, y + 36, C_TEXT, 1.1f, extra);
+    compact_metric(x + 20, y + 58, half, pct, shown, 0, hp);
+    vita2d_draw_line(x + w / 2, y + 66, x + w / 2, y + 206, C_TRACK);
+    compact_metric(x + w / 2 + 4, y + 58, half, temp, -1, 1, ht);
+}
+
 static void draw_compact(const AppState *st)
 {
     const VmonStats *s = &st->stats;
-    static const char *labels[4] = {"CPU %", "CPU °C", "GPU %", "GPU °C"};
-    float vals[4];
-    int i;
-    vals[0] = s->cpu;
-    vals[1] = s->ctemp;
-    vals[2] = s->gpu;
-    vals[3] = s->gtemp;
-    for (i = 0; i < 4; i++) {
-        char b[16];
-        int x = 12 + (i % 2) * 474, y = 52 + (i / 2) * 244;
-        unsigned int c = vals[i] < 0 ? C_MUTED : (i % 2) ? temp_color(vals[i]) : pct_color(vals[i]);
-        vita2d_draw_rectangle(x, y, 462, 232, C_PANEL);
-        text(x + 16, y + 34, C_MUTED, 1.2f, labels[i]);
-        text_center(x + 231, y + 175, c, 5.0f, fmtv(b, sizeof(b), "%.0f", vals[i]));
-    }
+    char ram[32], vram[40], a[16], b[16];
+
+    snprintf(ram, sizeof(ram), "RAM %s", fmtv(a, sizeof(a), "%.0f%%", s->ram));
+    if (s->vramu >= 0 && s->vramt > 0)
+        snprintf(vram, sizeof(vram), "VRAM %s / %s GB", fmtv(a, sizeof(a), "%.1f", s->vramu),
+                 fmtv(b, sizeof(b), "%.0f", s->vramt));
+    else
+        snprintf(vram, sizeof(vram), "VRAM --");
+
+    compact_panel(52, "CPU", s->cpu_name, ram, s->cpu, st->d_cpu, s->ctemp, &st->h_cpu, &st->h_ctemp);
+    compact_panel(296, "GPU", s->gpu_name, vram, s->gpu, st->d_gpu, s->gtemp, &st->h_gpu, &st->h_gtemp);
 }
 
 static void draw_debug(const AppState *st, const char *ip)

@@ -11,7 +11,7 @@ if not exist .venv-build\Scripts\python.exe (
 .venv-build\Scripts\python -m pip install --quiet --upgrade pip
 .venv-build\Scripts\python -m pip install --quiet -r requirements.txt pyinstaller pillow || goto :error
 
-set COMMON=--noconfirm --clean --windowed --name VitaMon --icon ..\vita\sce_sys\icon0.png --add-data "..\vita\sce_sys\icon0.png;."
+set COMMON=--noconfirm --clean --windowed --name VitaMon --icon ..\vita\sce_sys\icon0.png --add-data "..\vita\sce_sys\icon0.png;." --hidden-import pystray._win32
 
 echo Compilando VitaMon.exe (un archivo)...
 .venv-build\Scripts\python -m PyInstaller %COMMON% --onefile vitamon_gui.py || goto :error

@@ -42,6 +42,7 @@ Necesitas:
 | **Iniciar / Detener** | Empieza o para el envío. |
 | **Empezar a enviar al abrir** | Si está marcado, no hace falta pulsar Iniciar. |
 | **Abrir al iniciar Windows** | Abre VitaMon minimizado al encender el PC y empieza a enviar. |
+| **Minimizar a la bandeja del sistema** | Al minimizar, la ventana se oculta y queda un icono junto al reloj. Clic para mostrarla; clic derecho para Iniciar/Detener y Salir. |
 | **Fuentes de datos** | Muestra si se pueden leer la GPU y la temperatura de la CPU, y qué hacer si no. |
 
 La configuración se guarda en `%APPDATA%\VitaMon\config.json`.
@@ -53,7 +54,7 @@ En unos segundos el estado pasa de **Esperando** a **Conectado** y aparecen los 
 | Botón | Acción |
 |-------|--------|
 | SELECT | Cambiar idioma (se recuerda para la próxima vez) |
-| □ | Vista compacta: CPU %, CPU °C, GPU %, GPU °C en grande |
+| □ | Vista compacta: carga y temperatura de CPU y GPU en grande, con barras y gráficas de 60 s |
 | △ | Datos de depuración (última línea recibida, paquetes/s, IPs) |
 | START | Salir |
 
@@ -100,7 +101,9 @@ La GPU se lee con `nvidia-smi`, que viene con el driver de NVIDIA. Con GPU AMD o
 
 **GPU en `--`:** no es una GPU NVIDIA o `nvidia-smi` no funciona. Prueba a ejecutar `nvidia-smi` en una terminal.
 
-**"VitaMon ya está abierto":** ya hay una ventana de VitaMon (quizá minimizada en la barra de tareas). Solo puede haber una a la vez.
+**"VitaMon ya está abierto":** VitaMon ya se está ejecutando, probablemente como icono en la bandeja del sistema (junto al reloj; mira también en la flecha de iconos ocultos). Solo puede haber uno a la vez.
+
+**Batería de la Vita:** la app solo redibuja cuando cambia algo (animaciones a 30 fps como máximo, en lugar de 60 fijos) y duerme entre comprobaciones. Si pasan 5 minutos sin datos ni botones (por ejemplo, con el PC apagado), deja de mantener la pantalla encendida y la Vita se atenúa y suspende según su configuración. El mayor consumo es el brillo de la pantalla: bájalo desde el menú rápido (mantén pulsado PS).
 
 **Windows SmartScreen o el antivirus avisan al abrir el .exe:** el programa no tiene firma digital y los programas Python empaquetados con PyInstaller a veces dan falsos positivos. Pulsa *Más información → Ejecutar de todas formas*. La versión en carpeta (`VitaMon-windows.zip`) suele dar menos falsos positivos. También puedes ejecutarlo desde el código fuente (`pythonw vitamon_gui.py`).
 

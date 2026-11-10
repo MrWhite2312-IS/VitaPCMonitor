@@ -24,7 +24,8 @@ CPU, GPU, temperatures, RAM, network and disk on the Vita's screen, updated ever
 - **GPU (NVIDIA):** load, temperature, VRAM used/total and core clock.
 - **RAM, network** (upload/download KB/s) and **disk** activity.
 - **60-second graphs** for CPU and GPU load and temperature.
-- **Compact view** with four big numbers, readable from across the desk.
+- **Compact view** with big load and temperature numbers, color bars and mini graphs, readable from across the desk.
+- **Easy on the Vita's battery:** it only redraws when something changes and lets the Vita sleep when the PC is off.
 - **No setup on the network side:** the PC broadcasts on your LAN and the Vita picks it up. No IPs to type in most cases.
 - **Small Windows app with a window, not a console.** It can start with Windows and runs minimized.
 - **6 languages** on both the Vita and the PC: English, Español, Português, Français, Deutsch, Italiano.
@@ -63,7 +64,7 @@ Get both files from the [latest release](https://github.com/MrWhite2312-IS/VitaP
 2. Double-click it. A small window opens and starts sending right away.
 3. The first time, Windows asks about network access: allow it on **Private networks**.
 
-<p align="center"><img src="docs/ventana.png" alt="VitaMon window on Windows" width="420"></p>
+<p align="center"><img src="docs/window.png" alt="VitaMon window on Windows" width="420"></p>
 
 | Option | What it does |
 |--------|--------------|
@@ -72,6 +73,7 @@ Get both files from the [latest release](https://github.com/MrWhite2312-IS/VitaP
 | **Start / Stop** | Starts or stops sending. |
 | **Start sending when opened** | No need to press Start every time. |
 | **Open when Windows starts** | Launches VitaMon minimized at login. |
+| **Minimize to the system tray** | Minimizing hides the window and leaves an icon next to the clock. Click it to show the window; right-click for Start/Stop and Quit. |
 | **Data sources** | Shows whether GPU and CPU-temperature data are available, and how to fix it if not. |
 
 Settings are saved in `%APPDATA%\VitaMon\config.json`.
@@ -83,7 +85,7 @@ Within a couple of seconds the status changes from **Waiting** to **Connected** 
 | Button | Action |
 |--------|--------|
 | SELECT | Change language (remembered for next time) |
-| □ | Compact view: CPU %, CPU °C, GPU %, GPU °C in big numbers |
+| □ | Compact view: CPU and GPU load and temperature in big numbers, with bars and 60-second graphs |
 | △ | Debug overlay: last packet, packets/s, IP addresses |
 | START | Quit |
 
@@ -124,7 +126,7 @@ GPU stats come from `nvidia-smi`, which is installed with the NVIDIA driver. On 
 
 **GPU is `--`:** not an NVIDIA GPU, or `nvidia-smi` doesn't work. Try running `nvidia-smi` in a terminal.
 
-**"VitaMon is already open":** there is already a VitaMon window, maybe minimized in the taskbar. Only one can run at a time.
+**"VitaMon is already open":** VitaMon is already running, probably as an icon in the system tray (next to the clock; check the hidden icons arrow). Only one can run at a time.
 
 **Windows SmartScreen or antivirus warning:** the `.exe` is not code-signed, and Python apps packaged with PyInstaller sometimes trigger false positives. Click *More info → Run anyway*. The folder version (`VitaMon-windows.zip`) tends to get fewer false positives than the single `.exe`. You can also check the source and the [build log](https://github.com/MrWhite2312-IS/VitaPCMonitor/actions/workflows/build.yml), or [build it yourself](#build-the-windows-app) or [run it from source](#run-from-source).
 
@@ -136,7 +138,7 @@ nvidia-smi ────────────┼ ──► VitaMon.exe ──�
 LibreHardwareMonitor ──┘        (PC)                                    (PS Vita, C + vita2d)
 ```
 
-The PC sends one plain-text line per second as a UDP broadcast (or to a single IP). The Vita listens on port 10555, parses the line and draws it with [vita2d](https://github.com/xerpi/libvita2d). To save battery, the app runs the Vita's CPU at 111 MHz.
+The PC sends one plain-text line per second as a UDP broadcast (or to a single IP). The Vita listens on port 10555, parses the line and draws it with [vita2d](https://github.com/xerpi/libvita2d). To save battery, the app runs the Vita's CPU at 111 MHz, redraws only when data or the screen changes (animations at up to 30 fps instead of a constant 60), sleeps between checks, and stops keeping the screen awake after 5 minutes with no data and no button presses, so the Vita can dim and suspend as configured.
 
 <details>
 <summary>Protocol (v1)</summary>
