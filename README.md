@@ -7,7 +7,7 @@
 CPU, GPU, temperatures, RAM, network and disk on the Vita's screen, updated every second over WiFi.
 
 [![Build](https://github.com/MrWhite2312-IS/VitaPCMonitor/actions/workflows/build.yml/badge.svg)](https://github.com/MrWhite2312-IS/VitaPCMonitor/actions/workflows/build.yml)
-[![Latest release](https://img.shields.io/github/v/release/MrWhite2312-IS/VitaPCMonitor?include_prereleases&label=download)](https://github.com/MrWhite2312-IS/VitaPCMonitor/releases)
+[![Latest release](https://img.shields.io/github/v/release/MrWhite2312-IS/VitaPCMonitor?include_prereleases&label=download&cacheSeconds=3600)](https://github.com/MrWhite2312-IS/VitaPCMonitor/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 **English** · [Español](README.es.md)
@@ -195,7 +195,7 @@ vita/     Vita homebrew app (C + VitaSDK + vita2d)
 tools/    LiveArea asset generator
 ```
 
-Every push builds both files on GitHub Actions. Pushing a `v*` tag publishes them as a release; tags with a hyphen (`v1.3.0-beta.1`) are published as pre-releases. Before tagging, set `APP_VERSION` in [`server/version.py`](server/version.py) to the tag without the `v` (CI checks it) and `VITA_VERSION` in `vita/CMakeLists.txt`.
+Every push builds both files on GitHub Actions. Pushing a `v*` tag publishes them as a release; tags with a hyphen (`v1.4.0-beta.1`) are published as pre-releases. Before tagging, set `APP_VERSION` in [`server/version.py`](server/version.py) to the tag without the `v` (CI checks it) and `VITA_VERSION` in `vita/CMakeLists.txt`.
 
 ### Run from source
 
