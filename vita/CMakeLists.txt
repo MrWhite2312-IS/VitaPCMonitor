@@ -13,7 +13,7 @@ include("$ENV{VITASDK}/share/vita.cmake" REQUIRED)
 
 set(VITA_APP_NAME "VitaMon")
 set(VITA_TITLEID  "VMON00001")
-set(VITA_VERSION  "01.00")
+set(VITA_VERSION  "01.10")
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -O2")
@@ -22,6 +22,7 @@ set(VITA_MKSFOEX_FLAGS "${VITA_MKSFOEX_FLAGS} -d PARENTAL_LEVEL=1")
 add_executable(${PROJECT_NAME}
   src/main.c
   src/net.c
+  src/lang.c
   src/protocol.c
   src/ui.c
 )

@@ -7,6 +7,7 @@ import re
 import socket
 import subprocess
 import sys
+import threading
 import time
 import urllib.request
 
@@ -106,8 +107,11 @@ def read_psutil_temp():
 # ---------- Recolector ----------
 
 class Collector:
-    def __init__(self, lhm_url):
+    def __init__(self, lhm_url, warn=print):
         self.lhm_url = lhm_url
+        self.warn = warn
+        self.gpu_ok = False
+        self.lhm_ok = False
         self.host = re.sub(r"[;=\s]", "-", socket.gethostname())[:60]
         self.gpu_next_try = 0.0
         self.lhm_next_try = 0.0
@@ -132,6 +136,7 @@ class Collector:
         if now < self.gpu_next_try:
             return None
         g = read_gpu_nvidia()
+        self.gpu_ok = g is not None
         if g is None:
             self.gpu_next_try = now + RETRY_SECS
         return g
@@ -142,10 +147,11 @@ class Collector:
         if now < self.lhm_next_try:
             return None
         t = read_lhm(self.lhm_url)
+        self.lhm_ok = t is not None
         if t is None:
             self.lhm_next_try = now + RETRY_SECS
             if not self.lhm_warned:
-                print(f"[aviso] LibreHardwareMonitor no responde en {self.lhm_url}: ctemp=-1 "
+                self.warn(f"[aviso] LibreHardwareMonitor no responde en {self.lhm_url}: ctemp=-1 "
                       "(ábrelo como admin y activa Options > Remote Web Server > Run)")
                 self.lhm_warned = True
         return t
@@ -205,6 +211,46 @@ def build_line(s):
     return "VMON1;" + ";".join(parts)
 
 
+class Sender:
+    """Bucle de envío. Lo usan la consola (main) y la ventana (vitamon_gui.py) desde un hilo."""
+
+    def __init__(self, port=10555, interval=1.0, target=None, lhm_url="http://localhost:8085/data.json",
+                 on_line=None, on_error=None, warn=print):
+        self.dest = (target or "255.255.255.255", port)
+        self.interval = interval
+        self.collector = Collector(lhm_url, warn=warn)
+        self.on_line = on_line or (lambda sample, line: None)
+        self.on_error = on_error or (lambda kind, exc: print(f"[error] {kind}: {exc}"))
+        self.sent = 0
+
+    def run(self, stop=None):
+        """Envía hasta que stop (threading.Event) se active; sin stop, hasta Ctrl+C."""
+        stop = stop or threading.Event()
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        try:
+            next_t = time.monotonic()
+            while not stop.is_set():
+                next_t += self.interval
+                if stop.wait(max(0.0, next_t - time.monotonic())):
+                    break
+                try:
+                    sample = self.collector.sample()
+                    line = build_line(sample)
+                except Exception as e:  # nunca caerse por una lectura rara
+                    self.on_error("sample", e)
+                    continue
+                try:
+                    sock.sendto(line.encode("ascii", "replace"), self.dest)
+                except OSError as e:
+                    self.on_error("send", e)
+                    continue
+                self.sent += 1
+                self.on_line(sample, line)
+        finally:
+            sock.close()
+
+
 def main():
     ap = argparse.ArgumentParser(description="Servidor VitaMon (PC -> PS Vita por UDP)")
     ap.add_argument("--port", type=int, default=10555)
@@ -214,8 +260,15 @@ def main():
     ap.add_argument("--verbose", action="store_true", help="imprime cada línea enviada")
     args = ap.parse_args()
 
-    dest = (args.target or "255.255.255.255", args.port)
-    col = Collector(args.lhm_url)
+    def on_error(kind, exc):
+        if kind == "send":
+            print(f"[error] envío a {sender.dest[0]}:{sender.dest[1]}: {exc}")
+        else:
+            print(f"[error] muestreo: {exc}")
+
+    sender = Sender(args.port, args.interval, args.target, args.lhm_url,
+                    on_line=(lambda sample, line: print(line)) if args.verbose else None,
+                    on_error=on_error)
 
     print("VitaMon server")
     print(f"  puerto:      {args.port}")
@@ -228,29 +281,10 @@ def main():
         print(f"  temp CPU:    {'OK (psutil)' if read_psutil_temp() is not None else 'no'}")
     print("Ctrl+C para salir.")
 
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
     try:
-        next_t = time.monotonic()
-        while True:
-            next_t += args.interval
-            time.sleep(max(0.0, next_t - time.monotonic()))
-            try:
-                line = build_line(col.sample())
-            except Exception as e:  # nunca caerse por una lectura rara
-                print(f"[error] muestreo: {e}")
-                continue
-            try:
-                sock.sendto(line.encode("ascii", "replace"), dest)
-            except OSError as e:
-                print(f"[error] envío a {dest[0]}:{dest[1]}: {e}")
-                continue
-            if args.verbose:
-                print(line)
+        sender.run()
     except KeyboardInterrupt:
         print("\nSaliendo.")
-    finally:
-        sock.close()
 
 
 if __name__ == "__main__":

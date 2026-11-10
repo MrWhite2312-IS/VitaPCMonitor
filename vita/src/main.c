@@ -4,6 +4,7 @@
 #include <psp2/kernel/processmgr.h>
 #include <psp2/power.h>
 
+#include "lang.h"
 #include "net.h"
 #include "ui.h"
 
@@ -39,6 +40,7 @@ int main(void)
 
     scePowerSetArmClockFrequency(111);
     sceCtrlSetSamplingMode(SCE_CTRL_MODE_DIGITAL);
+    lang_init();
     ui_init();
     st.net_error = net_init();
     pps_t0 = sceKernelGetProcessTimeWide();
@@ -59,6 +61,12 @@ int main(void)
             st.compact = !st.compact;
         if (pressed & SCE_CTRL_TRIANGLE)
             st.debug = !st.debug;
+        if (pressed & SCE_CTRL_SELECT) {
+            lang_next();
+            st.lang_toast = 120; /* ~2 s */
+        }
+        if (st.lang_toast > 0)
+            st.lang_toast--;
 
         if (frame++ % 60 == 0 && !got_any) /* la IP puede aparecer tarde si el WiFi tarda */
             net_refresh_ip();
@@ -92,6 +100,7 @@ int main(void)
 
     net_fini();
     ui_fini();
+    lang_fini();
     sceKernelExitProcess(0);
     return 0;
 }
