@@ -29,7 +29,7 @@ Necesitas:
 
 ### 2. Abre VitaMon en el PC
 
-1. Descarga `VitaMon.exe` de la [última versión](https://github.com/MrWhite2312-IS/VitaPCMonitor/releases) (o genéralo con [build_exe.bat](#generar-vitamonexe)). Ponlo en cualquier carpeta; no necesita instalación.
+1. Descarga `VitaMon.exe` de la [última versión](https://github.com/MrWhite2312-IS/VitaPCMonitor/releases) (o genéralo con [build_exe.bat](#generar-vitamonexe)). Ponlo en cualquier carpeta; no necesita instalación. Si tu antivirus protesta, descarga en su lugar `VitaMon-windows.zip` (la misma app en carpeta), descomprímelo y mantén toda la carpeta `VitaMon` junta.
 2. Haz doble clic en `VitaMon.exe`. Se abre una ventana y empieza a enviar datos solo.
 3. La primera vez Windows pregunta si permite el acceso a la red: marca **Redes privadas** y acepta.
 
@@ -102,7 +102,7 @@ La GPU se lee con `nvidia-smi`, que viene con el driver de NVIDIA. Con GPU AMD o
 
 **"VitaMon ya está abierto":** ya hay una ventana de VitaMon (quizá minimizada en la barra de tareas). Solo puede haber una a la vez.
 
-**Windows SmartScreen o el antivirus avisan al abrir el .exe:** el programa no tiene firma digital y los programas Python empaquetados con PyInstaller a veces dan falsos positivos. Pulsa *Más información → Ejecutar de todas formas*, o ejecútalo desde el código fuente (`pythonw vitamon_gui.py`).
+**Windows SmartScreen o el antivirus avisan al abrir el .exe:** el programa no tiene firma digital y los programas Python empaquetados con PyInstaller a veces dan falsos positivos. Pulsa *Más información → Ejecutar de todas formas*. La versión en carpeta (`VitaMon-windows.zip`) suele dar menos falsos positivos. También puedes ejecutarlo desde el código fuente (`pythonw vitamon_gui.py`).
 
 ---
 
@@ -122,7 +122,7 @@ Requiere Python 3.10+ en el PATH. Desde la carpeta `server`:
 build_exe.bat
 ```
 
-Crea un entorno en `server\.venv-build`, instala psutil, PyInstaller y Pillow, y genera `server\dist\VitaMon.exe` (un solo archivo, sin consola, con el icono de la app).
+Crea un entorno en `server\.venv-build`, instala psutil, PyInstaller y Pillow, y genera `server\dist\VitaMon.exe` (un solo archivo, sin consola, con el icono de la app) y `server\dist\VitaMon-windows.zip` (la misma app en carpeta).
 
 GitHub Actions compila el VPK y el EXE en cada push. Al subir una etiqueta `v*` (por ejemplo `git tag v1.1.0 && git push origin v1.1.0`) los publica como *Release*.
 
