@@ -1,1 +1,4 @@
 psutil>=5.9
+# bandeja del sistema en la ventana (opcional: sin esto la app funciona, sin esa opción)
+pystray>=0.19
+pillow>=10
