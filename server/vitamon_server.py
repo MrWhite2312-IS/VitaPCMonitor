@@ -4,6 +4,7 @@
 import argparse
 import json
 import re
+import select
 import socket
 import subprocess
 import sys
@@ -13,6 +14,7 @@ import urllib.request
 
 import psutil
 
+import fps
 import gpu
 
 NA = -1
@@ -182,6 +184,7 @@ class Collector:
         self.warn = warn
         self.gpu_ok = False
         self.gpu_source = None  # "nvidia-smi", "LibreHardwareMonitor", "Windows" o None
+        self.fps_source = None  # "RivaTuner", "LibreHardwareMonitor" o None
         self.lhm_ok = False
         self.nvidia = read_gpu_nvidia() is not None
         self.win_gpu = None  # gpu.WindowsGpu, solo si no hay nvidia-smi
@@ -274,6 +277,11 @@ class Collector:
         tree = self._lhm_tree(now)
         ctemp = self._cpu_temp(tree)
         g = self._gpu(now, tree) or {}
+        # FPS: RivaTuner (cualquier juego y GPU) y, si no, LibreHardwareMonitor (algunas AMD)
+        frames = fps.read_fps()
+        self.fps_source = "RivaTuner" if frames is not None else None
+        if frames is None and g.get("fps", NA) >= 0:
+            frames, self.fps_source = g["fps"], "LibreHardwareMonitor"
 
         return {
             "host": self.host,
@@ -290,7 +298,9 @@ class Collector:
             "vramu": g.get("vramu", NA),
             "vramt": g.get("vramt", NA),
             "gclk": g.get("gclk", NA),
+            "fps": frames if frames is not None else NA,
             "gsrc": self.gpu_source,  # solo para la ventana; no va en la línea del protocolo
+            "fsrc": self.fps_source,  # ídem
             "up": max(up, 0.0),
             "down": max(down, 0.0),
             "disk": disk,
@@ -308,32 +318,85 @@ def build_line(s):
              f"cpu={fmt(s['cpu'])}", f"cores={cores}"]
     for k in ("ctemp", "ram", "ramu", "ramt", "gpu", "gtemp", "vramu", "vramt", "gclk", "up", "down", "disk"):
         parts.append(f"{k}={fmt(s[k])}")
+    parts.append(f"fps={fmt(s.get('fps', NA))}")
     parts.append(f"ts={s['ts']}")
     return "VMON1;" + ";".join(parts)
+
+
+def parse_ack(data, ip):
+    """Respuesta de la Vita -> {'ip', 'ver', 'batt' (-1 si no hay), 'chg' (bool), 't'}; None si no lo es."""
+    try:
+        text = data.decode("ascii").strip()
+    except UnicodeDecodeError:
+        return None
+    if not text.startswith("VMONACK1;"):
+        return None
+    fields = dict(p.split("=", 1) for p in text[9:].split(";") if "=" in p)
+    try:
+        batt = int(fields.get("batt", -1))
+    except ValueError:
+        batt = -1
+    return {"ip": ip, "ver": fields.get("ver", "")[:16], "batt": batt,
+            "chg": fields.get("chg") == "1", "t": time.monotonic()}
 
 
 class Sender:
     """Bucle de envío. Lo usan la consola (main) y la ventana (vitamon_gui.py) desde un hilo."""
 
     def __init__(self, port=10555, interval=1.0, target=None, lhm_url="http://localhost:8085/data.json",
-                 on_line=None, on_error=None, warn=print):
+                 on_line=None, on_error=None, warn=print, on_ack=None):
         self.dest = (target or "255.255.255.255", port)
         self.interval = interval
         self.collector = Collector(lhm_url, warn=warn)
         self.on_line = on_line or (lambda sample, line: None)
         self.on_error = on_error or (lambda kind, exc: print(f"[error] {kind}: {exc}"))
+        self.on_ack = on_ack or (lambda vita: None)
         self.sent = 0
+        self.vita = None  # última respuesta de la Vita: dict con ip, ver, batt, chg, t (monotonic)
+
+    def _read_acks(self, sock):
+        """Lee las respuestas pendientes de la Vita ("VMONACK1;ver=...;batt=...;chg=...")."""
+        while True:
+            try:
+                data, addr = sock.recvfrom(512)
+            except (BlockingIOError, InterruptedError):
+                return
+            except OSError:  # p. ej. WSAECONNRESET por un ICMP "puerto inalcanzable"
+                return
+            vita = parse_ack(data, addr[0])
+            if vita:
+                self.vita = vita
+                self.on_ack(vita)
 
     def run(self, stop=None):
-        """Envía hasta que stop (threading.Event) se active; sin stop, hasta Ctrl+C."""
+        """Envía hasta que stop (threading.Event) se active; sin stop, hasta Ctrl+C.
+        Entre envíos escucha en el mismo socket las respuestas de la Vita (conexión en dos sentidos)."""
         stop = stop or threading.Event()
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        if hasattr(socket, "SIO_UDP_CONNRESET"):  # Windows: que un ICMP no rompa recvfrom
+            try:
+                sock.ioctl(socket.SIO_UDP_CONNRESET, False)
+            except (OSError, ValueError):
+                pass
+        sock.setblocking(False)
         try:
             next_t = time.monotonic()
             while not stop.is_set():
                 next_t += self.interval
-                if stop.wait(max(0.0, next_t - time.monotonic())):
+                # esperar al próximo envío atendiendo las respuestas que lleguen
+                while not stop.is_set():
+                    left = next_t - time.monotonic()
+                    if left <= 0:
+                        break
+                    try:
+                        ready, _, _ = select.select([sock], [], [], min(left, 0.25))
+                    except (OSError, ValueError):
+                        ready = []
+                        stop.wait(min(left, 0.25))
+                    if ready:
+                        self._read_acks(sock)
+                if stop.is_set():
                     break
                 try:
                     sample = self.collector.sample()
@@ -367,9 +430,17 @@ def main():
         else:
             print(f"[error] muestreo: {exc}")
 
+    seen = set()
+
+    def on_ack(vita):  # se avisa una vez por cada Vita que responde
+        if vita["ip"] not in seen:
+            seen.add(vita["ip"])
+            batt = f", batería {vita['batt']}%" if vita["batt"] >= 0 else ""
+            print(f"[ok] la Vita {vita['ip']} está recibiendo (VitaMon {vita['ver'] or '?'}{batt})")
+
     sender = Sender(args.port, args.interval, args.target, args.lhm_url,
                     on_line=(lambda sample, line: print(line)) if args.verbose else None,
-                    on_error=on_error)
+                    on_error=on_error, on_ack=on_ack)
 
     print("VitaMon server")
     print(f"  puerto:      {args.port}")

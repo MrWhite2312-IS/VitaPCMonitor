@@ -9,6 +9,8 @@
 
 static char net_mem[1024 * 1024];
 static int sock = -1;
+static SceNetSockaddrIn last_from; /* quién mandó el último dato válido: a él se le responde */
+static int have_from;
 static int net_up, netctl_up, sysmod_up;
 static char ip[16];
 static char err[96];
@@ -112,9 +114,18 @@ int net_poll(VmonStats *out, char *line, int line_cap, char *from_ip, int from_c
             strncpy(line, buf, line_cap - 1);
             line[line_cap - 1] = '\0';
             sceNetInetNtop(SCE_NET_AF_INET, &from.sin_addr, from_ip, from_cap);
+            last_from = from;
+            have_from = 1;
         }
     }
     return valid;
+}
+
+int net_reply(const char *msg)
+{
+    if (sock < 0 || !have_from)
+        return -1;
+    return sceNetSendto(sock, msg, strlen(msg), 0, (SceNetSockaddr *)&last_from, sizeof(last_from));
 }
 
 void net_fini(void)

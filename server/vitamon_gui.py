@@ -12,10 +12,14 @@ import os
 import queue
 import sys
 import threading
+import time
 import tkinter as tk
+import webbrowser
 from tkinter import messagebox, ttk
 
+import fps
 import gpu
+import updates
 import vitamon_server as vs
 from i18n import LANGS, Translator
 
@@ -29,7 +33,8 @@ except Exception as e:  # ImportError, o un backend que falla al cargar
 
 APP_NAME = "VitaMon"
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
-DEFAULTS = {"lang": None, "target": "", "port": 10555, "auto_send": True, "tray": True}
+DEFAULTS = {"lang": None, "target": "", "port": 10555, "auto_send": True, "tray": True, "check_updates": True}
+NO_REPLY_SECS = 5  # sin respuesta de la Vita durante este tiempo -> aviso en la ventana
 
 
 # ---------- Rutas y configuración ----------
@@ -139,6 +144,8 @@ class App:
         self.stop_evt = None
         self.thread = None
         self.gpu_src = None  # fuente de la GPU: None = aún no se sabe, False = ninguna
+        self.fps_src = None  # "RivaTuner" / "LibreHardwareMonitor" / False (ninguna)
+        self.started_at = 0.0
         self.lhm_ok = None
         self.labels = []  # (widget, clave) para retraducir al cambiar de idioma
         self.tray = None  # pystray.Icon mientras la opción de bandeja esté activa
@@ -158,6 +165,8 @@ class App:
         root.bind("<Unmap>", self._on_unmap)
         root.after(150, self._poll)
         self._check_sources_async()
+        if cfg.get("check_updates"):
+            self._check_updates_async()
         if self.tray_enabled:
             self._tray_start()
 
@@ -181,6 +190,13 @@ class App:
         top = ttk.Frame(self.root, padding=10)
         top.pack(fill="both", expand=True)
         top.columnconfigure(1, weight=1)
+        self.top = top
+
+        # aviso de versión nueva (oculto hasta que haya una): franja clicable arriba de todo
+        self.update_info = None  # (tag, url)
+        self.update_lbl = tk.Label(self.root, bg="#e8f0fe", fg="#1a56db", cursor="hand2",
+                                   font=("Segoe UI", 10, "underline"), pady=6)
+        self.update_lbl.bind("<Button-1>", self.open_update)
 
         # idioma
         self._label(top, "language").grid(row=0, column=0, sticky="w", **pad)
@@ -220,17 +236,23 @@ class App:
         if pystray is None:
             tray.state(["disabled"])
         self.labels.append((tray, "tray_option"))
+        self.upd_var = tk.BooleanVar(value=bool(self.cfg.get("check_updates")))
+        upd = ttk.Checkbutton(top, variable=self.upd_var, command=self.on_updates_option)
+        upd.grid(row=7, column=0, columnspan=2, sticky="w", **pad)
+        self.labels.append((upd, "check_updates"))
 
         # botón
         self.btn = ttk.Button(top, command=self.toggle)
-        self.btn.grid(row=7, column=0, columnspan=2, sticky="ew", padx=10, pady=8)
+        self.btn.grid(row=8, column=0, columnspan=2, sticky="ew", padx=10, pady=8)
 
         # estado
         st = ttk.LabelFrame(top, padding=8)
-        st.grid(row=8, column=0, columnspan=2, sticky="ew", **pad)
+        st.grid(row=9, column=0, columnspan=2, sticky="ew", **pad)
         self.labels.append((st, "status"))
         self.status = tk.Label(st, anchor="w", font=("Segoe UI", 10, "bold"))
         self.status.pack(fill="x")
+        self.vita_lbl = tk.Label(st, anchor="w", justify="left", wraplength=470)  # respuesta de la Vita
+        self.vita_lbl.pack(fill="x")
         self.now = ttk.Label(st, anchor="w", font=("Consolas", 10))
         self.now.pack(fill="x", pady=(4, 0))
         self.packets = ttk.Label(st, anchor="w", foreground="#666")
@@ -238,7 +260,7 @@ class App:
 
         # fuentes
         src = ttk.LabelFrame(top, padding=8)
-        src.grid(row=9, column=0, columnspan=2, sticky="ew", **pad)
+        src.grid(row=10, column=0, columnspan=2, sticky="ew", **pad)
         src.columnconfigure(0, weight=1)
         self.labels.append((src, "sources"))
         self._label(src, "src_gpu").grid(row=0, column=0, sticky="w")
@@ -247,13 +269,16 @@ class App:
         self._label(src, "src_lhm").grid(row=1, column=0, sticky="w")
         self.lhm_lbl = tk.Label(src)
         self.lhm_lbl.grid(row=1, column=1, sticky="e")
+        self._label(src, "src_fps").grid(row=2, column=0, sticky="w")
+        self.fps_lbl = tk.Label(src)
+        self.fps_lbl.grid(row=2, column=1, sticky="e")
         self.src_help = ttk.Label(src, foreground="#a15c00", wraplength=470, justify="left")
-        self.src_help.grid(row=2, column=0, columnspan=2, sticky="w", pady=(4, 0))
+        self.src_help.grid(row=3, column=0, columnspan=2, sticky="w", pady=(4, 0))
 
         # registro
         lg = ttk.LabelFrame(top, padding=6)
-        lg.grid(row=10, column=0, columnspan=2, sticky="nsew", **pad)
-        top.rowconfigure(10, weight=1)
+        lg.grid(row=11, column=0, columnspan=2, sticky="nsew", **pad)
+        top.rowconfigure(11, weight=1)
         self.labels.append((lg, "log"))
         self.log_box = tk.Text(lg, height=6, width=60, state="disabled", font=("Consolas", 9), wrap="word")
         self.log_box.pack(fill="both", expand=True)
@@ -285,6 +310,21 @@ class App:
             self.status.configure(text="● " + self.t("stopped"), fg="#888")
         n = self.sender.sent if self.sender else 0
         self.packets.configure(text=self.t("packets", n=n))
+        # conexión en dos sentidos: ¿responde la Vita?
+        vita = self.sender.vita if self.sender else None
+        if not self.running:
+            self.vita_lbl.configure(text="")
+        elif vita and time.monotonic() - vita["t"] < NO_REPLY_SECS:
+            text = "✔ " + self.t("vita_ok", ip=vita["ip"])
+            if vita["batt"] >= 0:
+                text += self.t("vita_batt", batt=vita["batt"]) + (self.t("vita_charging") if vita["chg"] else "")
+            self.vita_lbl.configure(text=text, fg="#1e8e3e")
+        elif time.monotonic() - self.started_at >= NO_REPLY_SECS:
+            self.vita_lbl.configure(text="⚠ " + self.t("vita_no_reply"), fg="#a15c00")
+        else:
+            self.vita_lbl.configure(text="…", fg="#888")
+        if self.update_info:
+            self.update_lbl.configure(text=self.t("update_available", tag=self.update_info[0]))
         if self.tray:  # texto al pasar el ratón por el icono (máx. 127 caracteres en Windows)
             tip = f"{APP_NAME}: " + self.status.cget("text").lstrip("● ")
             if self.tray.title != tip[:127]:
@@ -358,6 +398,11 @@ class App:
         else:
             self.gpu_lbl.configure(text=self.gpu_src, fg="#a15c00" if self.gpu_src == "Windows" else "#1e8e3e")
         show(self.lhm_lbl, self.lhm_ok)
+        # FPS: opcional; sin RivaTuner no es un error, solo se indica cómo activarlo
+        if self.fps_src:
+            self.fps_lbl.configure(text=self.fps_src, fg="#1e8e3e")
+        else:
+            self.fps_lbl.configure(text="…" if self.fps_src is None else self.t("fps_missing"), fg="#888")
         tips = []
         if self.gpu_src is False:
             tips.append(self.t("gpu_help"))
@@ -400,6 +445,23 @@ class App:
             self.login_var.set(get_run_at_login())
             messagebox.showerror(APP_NAME, self.t("err_login", err=e))
 
+    def _check_updates_async(self):
+        def work():
+            found = updates.check()
+            if found:
+                self.events.put(("update", found))
+        threading.Thread(target=work, daemon=True).start()
+
+    def open_update(self, _evt=None):
+        if self.update_info:
+            webbrowser.open(self.update_info[1])
+
+    def on_updates_option(self):
+        self.cfg["check_updates"] = bool(self.upd_var.get())
+        self._save()
+        if self.cfg["check_updates"] and not self.update_info:
+            self._check_updates_async()
+
     def _check_sources_async(self):
         def work():
             tree = vs.read_lhm_tree("http://localhost:8085/data.json") if sys.platform == "win32" else None
@@ -413,7 +475,8 @@ class App:
                 src = False
             lhm = vs.find_lhm_cpu_temp(tree) is not None if tree else \
                 (vs.read_psutil_temp() is not None if sys.platform != "win32" else False)
-            self.events.put(("sources", src, lhm))
+            fsrc = "RivaTuner" if fps.rtss_running() else False
+            self.events.put(("sources", src, lhm, fsrc))
         threading.Thread(target=work, daemon=True).start()
 
     def toggle(self):
@@ -444,10 +507,12 @@ class App:
             port=port, target=target or None,
             on_line=lambda sample, line: ev.put(("line", sample)),
             on_error=lambda kind, exc: ev.put(("error", kind, exc)),
+            on_ack=lambda vita: ev.put(("ack", vita)),
             warn=lambda msg: None,  # la ventana muestra su propio aviso traducido
         )
         self.stop_evt = threading.Event()
         self.thread = threading.Thread(target=self.sender.run, args=(self.stop_evt,), daemon=True)
+        self.started_at = time.monotonic()
         self.thread.start()
         for w in (self.target_entry, self.port_entry):
             w.state(["disabled"])
@@ -474,10 +539,13 @@ class App:
                     s = ev[1]
                     self.now.configure(text=(
                         f"{self.t('now')}:  CPU {fmt_pct(s['cpu'])} {fmt_temp(s['ctemp'])}   "
-                        f"GPU {fmt_pct(s['gpu'])} {fmt_temp(s['gtemp'])}   RAM {fmt_pct(s['ram'])}"))
+                        f"GPU {fmt_pct(s['gpu'])} {fmt_temp(s['gtemp'])}   RAM {fmt_pct(s['ram'])}"
+                        + (f"   FPS {s['fps']:.0f}" if s.get("fps", -1) >= 0 else "")))
                     src, lhm = s.get("gsrc") or False, s["ctemp"] >= 0
-                    if (src, lhm) != (self.gpu_src, self.lhm_ok):
-                        self.gpu_src, self.lhm_ok = src, lhm
+                    # la fuente de FPS solo se 'sube': sin juego en pantalla RTSS no da FPS, pero sigue abierto
+                    fsrc = s.get("fsrc") or self.fps_src
+                    if (src, lhm, fsrc) != (self.gpu_src, self.lhm_ok, self.fps_src):
+                        self.gpu_src, self.lhm_ok, self.fps_src = src, lhm, fsrc
                         self._refresh_sources()
                 elif ev[0] == "error":
                     _, kind, exc = ev
@@ -486,8 +554,17 @@ class App:
                     if msg != last_err:  # no llenar el registro con el mismo error cada segundo
                         self.log(msg)
                         last_err = msg
+                elif ev[0] == "ack":
+                    self._refresh_status()
+                elif ev[0] == "update":
+                    self.update_info = ev[1]
+                    self.update_lbl.pack(side="top", fill="x", before=self.top)
+                    self._refresh_status()
+                    self.log(self.t("update_available", tag=ev[1][0]))
                 elif ev[0] == "sources":
                     self.gpu_src, self.lhm_ok = ev[1], ev[2]
+                    if self.fps_src is None or ev[3]:
+                        self.fps_src = ev[3]
                     self._refresh_sources()
                 elif ev[0] == "tray":
                     if ev[1] == "show":

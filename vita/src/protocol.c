@@ -9,7 +9,7 @@ void vmon_stats_reset(VmonStats *s)
     memset(s, 0, sizeof(*s));
     s->cpu = s->ctemp = s->ram = s->ramu = s->ramt = -1.0f;
     s->gpu = s->gtemp = s->vramu = s->vramt = s->gclk = -1.0f;
-    s->up = s->down = s->disk = -1.0f;
+    s->up = s->down = s->disk = s->fps = -1.0f;
     s->ts = -1.0;
 }
 
@@ -83,7 +83,7 @@ int vmon_parse(const char *line, VmonStats *out)
                     {"gtemp", offsetof(VmonStats, gtemp)}, {"vramu", offsetof(VmonStats, vramu)},
                     {"vramt", offsetof(VmonStats, vramt)}, {"gclk", offsetof(VmonStats, gclk)},
                     {"up", offsetof(VmonStats, up)},       {"down", offsetof(VmonStats, down)},
-                    {"disk", offsetof(VmonStats, disk)},
+                    {"disk", offsetof(VmonStats, disk)},     {"fps", offsetof(VmonStats, fps)},
                 };
                 size_t i;
                 for (i = 0; i < sizeof(keys) / sizeof(keys[0]); i++) {

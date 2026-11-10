@@ -24,6 +24,8 @@ typedef struct {
     char from_ip[16];
     int pps;
     int lang_toast;           /* != 0 mientras se ve el aviso de idioma */
+    int batt;                 /* batería de la Vita en %, -1 en PS TV o si no se puede leer */
+    int charging;
 } AppState;
 
 void hist_push(History *h, float v);
