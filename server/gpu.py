@@ -74,6 +74,7 @@ def lhm_gpus(tree):
             load = _first(sensors, "Load", ["GPU Core", "D3D 3D"])
             temp = _first(sensors, "Temperatures", ["GPU Core", "GPU Hot Spot", "GPU Package", "GPU"])
             clock = _first(sensors, "Clocks", ["GPU Core"])
+            fps = _first(sensors, "Factors", ["Fullscreen FPS"])  # -1 sin juego a pantalla completa
             found.append({
                 "name": node.get("Text", ""),
                 "vram_total_gb": _to_gb(total) if total else NA,
@@ -82,6 +83,7 @@ def lhm_gpus(tree):
                 "gclk": clock if clock is not None else NA,
                 "vramu": _to_gb(used) if used else NA,
                 "vramt": _to_gb(total) if total else NA,
+                "fps": fps if fps is not None else NA,
             })
             return
         for child in node.get("Children", []):

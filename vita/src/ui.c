@@ -216,6 +216,23 @@ static void draw_bottom(const AppState *st)
     text(dx, 494, s->disk < 0 ? C_MUTED : pct_color(s->disk), 1.1f, fmtv(b, sizeof(b), "%.0f%%", s->disk));
 }
 
+/* Icono de pila + porcentaje, alineado a la derecha en right_x. Verde/ámbar/rojo según la carga;
+ * azul mientras carga. */
+static void draw_battery(int right_x, int pct, int charging)
+{
+    char b[8];
+    int tw, x, fill;
+    unsigned int c = charging ? C_LINE_PCT : pct <= 15 ? C_RED : pct <= 30 ? C_AMBER : C_GREEN;
+    snprintf(b, sizeof(b), "%d%%", pct);
+    tw = vita2d_pgf_text_width(font, 0.9f, b);
+    text(right_x - tw, 29, C_MUTED, 0.9f, b);
+    x = right_x - tw - 8 - 30; /* cuerpo 26x13 + polo 3x6 */
+    vita2d_draw_rectangle(x, 16, 26, 13, C_TRACK);
+    vita2d_draw_rectangle(x + 26, 19, 3, 7, C_TRACK);
+    fill = 22 * pct / 100;
+    vita2d_draw_rectangle(x + 2, 18, fill < 1 ? 1 : fill, 9, c);
+}
+
 static void draw_header(const AppState *st)
 {
     char b[16];
@@ -243,6 +260,17 @@ static void draw_header(const AppState *st)
     tx = SCREEN_W - 100 - vita2d_pgf_text_width(font, 1.0f, label);
     vita2d_draw_fill_circle(tx - 14, 23, 6, c);
     text(tx, 30, c, 1.0f, label);
+
+    /* batería de la Vita, a la izquierda del estado */
+    if (st->batt >= 0)
+        draw_battery(tx - 34, st->batt, st->charging);
+
+    /* FPS del juego en el PC, en el centro (solo si hay un juego en primer plano) */
+    if (st->conn == CONN_OK && st->stats.fps >= 0) {
+        char f[24];
+        snprintf(f, sizeof(f), "%.0f FPS", st->stats.fps);
+        text_center(SCREEN_W / 2, 31, C_LINE_PCT, 1.3f, f);
+    }
 }
 
 static void draw_waiting(const AppState *st, const char *ip)

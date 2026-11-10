@@ -45,6 +45,9 @@ static void test_names(void)
     CHECK(!strcmp(s.cpu_name, "Ryzen 5 5600G") && !strcmp(s.gpu_name, "RTX 3050"));
     CHECK(vmon_parse("VMON1;host=PC;cpu=1", &s) == 0); /* servidor viejo: sin nombres */
     CHECK(s.cpu_name[0] == '\0' && s.gpu_name[0] == '\0');
+    CHECK(s.fps == -1.0f); /* servidor viejo: sin FPS */
+    CHECK(vmon_parse("VMON1;cpu=1;fps=143.6", &s) == 0);
+    CHECK(FEQ(s.fps, 143.6));
 }
 
 static void test_minus_one(void)

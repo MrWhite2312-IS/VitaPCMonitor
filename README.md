@@ -20,20 +20,23 @@ CPU, GPU, temperatures, RAM, network and disk on the Vita's screen, updated ever
 
 - **CPU:** total load, a bar per thread, temperature and the CPU model name.
 - **GPU (NVIDIA, AMD Radeon, Intel):** load, temperature, VRAM used/total and core clock.
+- **Game FPS** of the game you're playing, with RivaTuner Statistics Server ([details](#game-fps-rivatuner)).
 - **RAM, network** (upload/download KB/s) and **disk** activity.
 - **60-second graphs** for CPU and GPU load and temperature.
 - **Compact view** with big load and temperature numbers, color bars and mini graphs, readable from across the desk.
-- **Easy on the Vita's battery:** it only redraws when something changes and lets the Vita sleep when the PC is off.
+- **Touch screen:** tap to switch views, swipe to change language, hold for debug info.
+- **Vita battery** level in the corner, and **easy on it:** the app only redraws when something changes and lets the Vita sleep when the PC is off.
+- **Two-way connection:** the PC window tells you when the Vita is actually receiving (and its battery level).
 - **No setup on the network side:** the PC broadcasts on your LAN and the Vita picks it up. No IPs to type in most cases.
-- **Small Windows app with a window, not a console.** It can start with Windows and runs minimized.
+- **Small Windows app with a window, not a console.** It can start with Windows, lives in the system tray and tells you when there's a new version.
 - **6 languages** on both the Vita and the PC: English, Español, Português, Français, Deutsch, Italiano.
-- **Local only:** data goes from your PC to your Vita over UDP on your own network. Nothing is sent to the internet.
+- **Your stats stay on your network:** they go from your PC to your Vita over UDP on your LAN. The only internet request is the update check (an anonymous request to GitHub's public API when the app opens), which you can turn off.
 
 ## Requirements
 
 - A PS Vita (or PS TV) with **HENkaku / Ensō** and **VitaShell**.
 - A **Windows 10/11** PC on the same network as the Vita (WiFi or Ethernet).
-- Optional: **LibreHardwareMonitor** for CPU temperature, and for GPU temperature on AMD/Intel ([details](#optional-sensors)).
+- Optional: **LibreHardwareMonitor** for CPU temperature (and GPU temperature on AMD/Intel), and **RivaTuner Statistics Server** for game FPS ([details](#optional-sensors)).
 
 ## Quick start
 
@@ -72,7 +75,9 @@ Get both files from the [latest release](https://github.com/MrWhite2312-IS/VitaP
 | **Start sending when opened** | No need to press Start every time. |
 | **Open when Windows starts** | Launches VitaMon minimized at login. |
 | **Minimize to the system tray** | Minimizing hides the window and leaves an icon next to the clock. Click it to show the window; right-click for Start/Stop and Quit. |
-| **Data sources** | Shows whether GPU and CPU-temperature data are available, and how to fix it if not. |
+| **Check for updates when opened** | Shows a banner at the top when a new version is out. Click it to open the download page. |
+| **Status** | Whether it's sending, and whether the Vita is answering ("The Vita … is receiving the data", with its battery). |
+| **Data sources** | Where the GPU, CPU-temperature and FPS data come from, and how to fix it if something is missing. |
 
 Settings are saved in `%APPDATA%\VitaMon\config.json`.
 
@@ -80,18 +85,18 @@ Settings are saved in `%APPDATA%\VitaMon\config.json`.
 
 Within a couple of seconds the status changes from **Waiting** to **Connected** and the stats appear.
 
-| Button | Action |
-|--------|--------|
-| SELECT | Change language (remembered for next time) |
-| □ | Compact view: CPU and GPU load and temperature in big numbers, with bars and 60-second graphs |
-| △ | Debug overlay: last packet, packets/s, IP addresses |
-| START | Quit |
+| Button | Touch | Action |
+|--------|-------|--------|
+| □ | Tap | Compact view: CPU and GPU load and temperature in big numbers, with bars and 60-second graphs |
+| SELECT | Swipe left/right | Change language (remembered for next time) |
+| △ | Hold | Debug overlay: last packet, packets/s, IP addresses |
+| START | | Quit |
 
-The first time, the app uses the Vita's system language (English if it isn't one of the six). The status in the corner shows **Waiting** (nothing received yet, with the Vita's IP), **Connected**, or **No signal** (no data for 3 s; the last values stay on screen, dimmed).
+The first time, the app uses the Vita's system language (English if it isn't one of the six). The top bar shows the PC name, the game's **FPS** (when available), the Vita's **battery**, the connection status and the time. The status is **Waiting** (nothing received yet, with the Vita's IP), **Connected**, or **No signal** (no data for 3 s; the last values stay on screen, dimmed).
 
 ## Optional sensors
 
-CPU load, RAM, network and disk always work. Two things need a bit more:
+CPU load, RAM, network and disk always work. Some things need a bit more:
 
 ### CPU temperature: LibreHardwareMonitor
 
@@ -115,6 +120,15 @@ VitaMon uses the best source it finds. The VitaMon window shows which one is in 
 
 With **AMD or Intel**, run LibreHardwareMonitor (see above) to get temperature and clock. Without it you still get load and VRAM, as shown in Task Manager. If the PC has both integrated and dedicated graphics, VitaMon shows the one with the most dedicated memory.
 
+### Game FPS: RivaTuner
+
+Windows doesn't tell other programs how many FPS a game runs at, so VitaMon reads them from **RivaTuner Statistics Server** (RTSS), which works with any game and any GPU brand:
+
+1. Install RivaTuner Statistics Server. It comes with [MSI Afterburner](https://www.msi.com/Landing/afterburner/graphics-cards) or can be installed on its own.
+2. Leave it running (it sits in the system tray). You don't need to turn on its on-screen display.
+
+The FPS of the game in the foreground appear at the top of the Vita's screen. When you alt-tab out of the game, they disappear. Without RTSS, VitaMon still shows FPS on AMD GPUs where LibreHardwareMonitor reports them.
+
 ## Troubleshooting
 
 **The Vita stays on "Waiting for data"**
@@ -132,6 +146,10 @@ With **AMD or Intel**, run LibreHardwareMonitor (see above) to get temperature a
 
 **GPU temperature or clock is `--`:** on AMD/Intel, LibreHardwareMonitor isn't running (the window shows "Windows" as the GPU source). Integrated Intel graphics usually don't report a temperature at all. On NVIDIA, check that `nvidia-smi` runs in a terminal.
 
+**The window says "The Vita is not responding"** but the Vita shows data: the Vita app is older than 1.3 (update the VPK), or the firewall blocks the reply. Everything still works; only the confirmation in the window is missing.
+
+**No FPS:** RivaTuner Statistics Server isn't running, or the game isn't the active window. Some games with anti-cheat block RTSS.
+
 **"VitaMon is already open":** VitaMon is already running, probably as an icon in the system tray (next to the clock; check the hidden icons arrow). Only one can run at a time.
 
 **Windows SmartScreen or antivirus warning:** the `.exe` is not code-signed, and Python apps packaged with PyInstaller sometimes trigger false positives. Click *More info → Run anyway*. The folder version (`VitaMon-windows.zip`) tends to get fewer false positives than the single `.exe`. You can also check the source and the [build log](https://github.com/MrWhite2312-IS/VitaPCMonitor/actions/workflows/build.yml), or [build it yourself](#build-the-windows-app) or [run it from source](#run-from-source).
@@ -141,11 +159,12 @@ With **AMD or Intel**, run LibreHardwareMonitor (see above) to get temperature a
 ```
 psutil ────────────────┐
 nvidia-smi ────────────┤
-LibreHardwareMonitor ──┼ ──► VitaMon.exe ──── UDP :10555, 1 line/s ───► VitaMon
-Windows GPU counters ──┘        (PC)                                    (PS Vita, C + vita2d)
+LibreHardwareMonitor ──┤
+RivaTuner (FPS) ───────┼ ──► VitaMon.exe ◄──── UDP :10555 ────► VitaMon
+Windows GPU counters ──┘        (PC)       stats 1/s ► ◄ reply  (PS Vita, C + vita2d)
 ```
 
-The PC sends one plain-text line per second as a UDP broadcast (or to a single IP). The Vita listens on port 10555, parses the line and draws it with [vita2d](https://github.com/xerpi/libvita2d). To save battery, the app runs the Vita's CPU at 111 MHz, redraws only when data or the screen changes (animations at up to 30 fps instead of a constant 60), sleeps between checks, and stops keeping the screen awake after 5 minutes with no data and no button presses, so the Vita can dim and suspend as configured.
+The PC sends one plain-text line per second as a UDP broadcast (or to a single IP). The Vita listens on port 10555, parses the line and draws it with [vita2d](https://github.com/xerpi/libvita2d), and answers the PC with a short reply (at most once per second) so the PC window can show that it's connected. To save battery, the app runs the Vita's CPU at 111 MHz, redraws only when data or the screen changes (animations at up to 30 fps instead of a constant 60), sleeps between checks, and stops keeping the screen awake after 5 minutes with no data and no button presses, so the Vita can dim and suspend as configured.
 
 <details>
 <summary>Protocol (v1)</summary>
@@ -153,10 +172,18 @@ The PC sends one plain-text line per second as a UDP broadcast (or to a single I
 One ASCII line per datagram, under 1024 bytes:
 
 ```
-VMON1;host=DESKTOP;cpun=Ryzen 5 5600G;gpun=RTX 3050;cpu=23.4;cores=12,30,...;ctemp=54.0;ram=55.1;ramu=8.8;ramt=16.0;gpu=12;gtemp=60;vramu=1.2;vramt=8.0;gclk=1500;up=123.4;down=456.7;disk=40.2;ts=1731258000
+VMON1;host=DESKTOP;cpun=Ryzen 5 5600G;gpun=RTX 3050;cpu=23.4;cores=12,30,...;ctemp=54.0;ram=55.1;ramu=8.8;ramt=16.0;gpu=12;gtemp=60;vramu=1.2;vramt=8.0;gclk=1500;up=123.4;down=456.7;disk=40.2;fps=144.0;ts=1731258000
 ```
 
 `-1` means "not available". The app ignores unknown keys and any datagram that doesn't start with `VMON1;`, so new fields can be added without breaking older versions.
+
+The Vita answers to the sender's address and port:
+
+```
+VMONACK1;ver=1.3;batt=80;chg=0
+```
+
+`batt` is the Vita's battery in % (`-1` on PS TV) and `chg` is `1` while charging.
 
 </details>
 
@@ -168,7 +195,7 @@ vita/     Vita homebrew app (C + VitaSDK + vita2d)
 tools/    LiveArea asset generator
 ```
 
-Every push builds both files on GitHub Actions. Pushing a `v*` tag publishes them as a release.
+Every push builds both files on GitHub Actions. Pushing a `v*` tag publishes them as a release; tags with a hyphen (`v1.3.0-beta.1`) are published as pre-releases. Before tagging, set `APP_VERSION` in [`server/version.py`](server/version.py) to the tag without the `v` (CI checks it) and `VITA_VERSION` in `vita/CMakeLists.txt`.
 
 ### Run from source
 
@@ -225,6 +252,8 @@ cd vita/tests && gcc -std=c11 -Wall -I../src ../src/lang.c test_lang.c -o test_l
 cd server && python test_server_line.py
 # GPU readers with sample LibreHardwareMonitor data (NVIDIA, AMD, Intel)
 cd server && python test_gpu.py
+# RivaTuner FPS reader, update check and the Vita's reply
+cd server && python test_misc.py
 # see what the PC is sending (from another terminal or machine)
 python server/test_listener.py
 ```

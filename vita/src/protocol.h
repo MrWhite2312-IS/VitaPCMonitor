@@ -20,6 +20,7 @@ typedef struct {
     float gpu, gtemp, vramu, vramt, gclk;
     float up, down;
     float disk;
+    float fps; /* FPS del juego en primer plano (RivaTuner / LHM); -1 sin juego */
     double ts;
 } VmonStats;
 

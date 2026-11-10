@@ -16,6 +16,11 @@ const char *net_ip(void);
  * Devuelve cuántos datagramas válidos llegaron; si >0, *out, line y from_ip tienen el último válido. */
 int net_poll(VmonStats *out, char *line, int line_cap, char *from_ip, int from_cap);
 
+/* Conexión en dos sentidos: responde al PC que mandó el último dato válido
+ * (a su IP y puerto de origen) para que su ventana sepa que la Vita recibe.
+ * Formato: "VMONACK1;ver=1.3;batt=80;chg=0". Devuelve <0 si no hay a quién responder. */
+int net_reply(const char *msg);
+
 /* Primer error de init como "paso: 0x...", o "" si no hubo. */
 const char *net_error_text(void);
 

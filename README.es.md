@@ -2,7 +2,9 @@
 
 Convierte tu PS Vita en una pantalla de monitoreo para tu PC con Windows: CPU (total y por hilo), GPU, temperaturas, RAM, red y disco, con gráficas de los últimos 60 segundos.
 
-El PC envía sus datos por la red WiFi una vez por segundo y la Vita los muestra a pantalla completa. No hace falta cable ni configurar IPs: basta con que los dos estén en la misma red.
+El PC envía sus datos por la red WiFi una vez por segundo y la Vita los muestra a pantalla completa. No hace falta cable ni configurar IPs: basta con que los dos estén en la misma red. También muestra los **FPS del juego** (con RivaTuner), la **batería de la Vita**, se maneja con la **pantalla táctil** y la ventana del PC confirma que la Vita está recibiendo.
+
+Tus datos solo viajan por tu red local. La única conexión a internet es la búsqueda de actualizaciones (una consulta anónima a la API pública de GitHub al abrir la app), que se puede desactivar.
 
 **Idiomas:** español, English, português, français, Deutsch, italiano (en la Vita y en el programa del PC).
 
@@ -45,7 +47,9 @@ Necesitas:
 | **Empezar a enviar al abrir** | Si está marcado, no hace falta pulsar Iniciar. |
 | **Abrir al iniciar Windows** | Abre VitaMon minimizado al encender el PC y empieza a enviar. |
 | **Minimizar a la bandeja del sistema** | Al minimizar, la ventana se oculta y queda un icono junto al reloj. Clic para mostrarla; clic derecho para Iniciar/Detener y Salir. |
-| **Fuentes de datos** | Muestra si se pueden leer la GPU y la temperatura de la CPU, y qué hacer si no. |
+| **Buscar actualizaciones al abrir** | Muestra una franja arriba cuando hay una versión nueva. Clic para ir a la descarga. |
+| **Estado** | Si está enviando y si la Vita responde ("La Vita … está recibiendo los datos", con su batería). |
+| **Fuentes de datos** | De dónde salen los datos de GPU, temperatura de la CPU y FPS, y qué hacer si falta alguno. |
 
 La configuración se guarda en `%APPDATA%\VitaMon\config.json`.
 
@@ -53,16 +57,16 @@ La configuración se guarda en `%APPDATA%\VitaMon\config.json`.
 
 En unos segundos el estado pasa de **Esperando** a **Conectado** y aparecen los datos.
 
-| Botón | Acción |
-|-------|--------|
-| SELECT | Cambiar idioma (se recuerda para la próxima vez) |
-| □ | Vista compacta: carga y temperatura de CPU y GPU en grande, con barras y gráficas de 60 s |
-| △ | Datos de depuración (última línea recibida, paquetes/s, IPs) |
-| START | Salir |
+| Botón | Táctil | Acción |
+|-------|--------|--------|
+| □ | Tocar | Vista compacta: carga y temperatura de CPU y GPU en grande, con barras y gráficas de 60 s |
+| SELECT | Deslizar a un lado | Cambiar idioma (se recuerda para la próxima vez) |
+| △ | Mantener pulsado | Datos de depuración (última línea recibida, paquetes/s, IPs) |
+| START | | Salir |
 
-La primera vez la app usa el idioma del sistema de la Vita (o inglés si no está disponible). El idioma elegido con SELECT se guarda en `ux0:data/VitaMon/lang.txt`.
+La primera vez la app usa el idioma del sistema de la Vita (o inglés si no está disponible). El idioma elegido se guarda en `ux0:data/VitaMon/lang.txt`.
 
-Estados en la esquina superior: **Esperando** (no ha llegado nada; muestra la IP de la Vita), **Conectado** y **Sin señal** (más de 3 s sin datos; los últimos valores se ven atenuados).
+La barra de arriba muestra el nombre del PC, los **FPS** del juego (si los hay), la **batería** de la Vita, el estado y la hora. Estados: **Esperando** (no ha llegado nada; muestra la IP de la Vita), **Conectado** y **Sin señal** (más de 3 s sin datos; los últimos valores se ven atenuados).
 
 ---
 
@@ -92,6 +96,15 @@ VitaMon usa la mejor fuente que encuentra. La ventana de VitaMon muestra cuál e
 
 Con **AMD o Intel**, abre LibreHardwareMonitor (ver arriba) para tener temperatura y reloj. Sin él tendrás igualmente la carga y la VRAM, como en el Administrador de tareas. Si el PC tiene gráfica integrada y dedicada, VitaMon muestra la que tiene más memoria dedicada.
 
+### FPS de los juegos: RivaTuner
+
+Windows no da a otros programas los FPS de un juego, así que VitaMon los lee de **RivaTuner Statistics Server** (RTSS), que funciona con cualquier juego y cualquier marca de GPU:
+
+1. Instala RivaTuner Statistics Server. Viene con [MSI Afterburner](https://www.msi.com/Landing/afterburner/graphics-cards) o se puede instalar solo.
+2. Déjalo abierto (queda en la bandeja del sistema). No hace falta activar su contador en pantalla.
+
+Los FPS del juego en primer plano aparecen arriba en la pantalla de la Vita y desaparecen al salir del juego con Alt+Tab. Sin RTSS, VitaMon muestra FPS en las GPU AMD en las que LibreHardwareMonitor los da.
+
 ---
 
 ## Problemas frecuentes
@@ -110,6 +123,10 @@ Con **AMD o Intel**, abre LibreHardwareMonitor (ver arriba) para tener temperatu
 **Temperatura de la CPU en `--`:** LibreHardwareMonitor no está abierto, no se abrió como administrador o el *Remote Web Server* está apagado.
 
 **Temperatura o reloj de la GPU en `--`:** con AMD/Intel, LibreHardwareMonitor no está abierto (la ventana muestra "Windows" como fuente de la GPU). Las gráficas integradas de Intel normalmente no informan de su temperatura. Con NVIDIA, comprueba que `nvidia-smi` funciona en una terminal.
+
+**La ventana dice "La Vita no responde"** pero la Vita muestra datos: la app de la Vita es anterior a la 1.3 (actualiza el VPK) o el firewall bloquea la respuesta. Todo sigue funcionando; solo falta la confirmación en la ventana.
+
+**No aparecen FPS:** RivaTuner Statistics Server no está abierto o el juego no es la ventana activa. Algunos juegos con anti-trampas bloquean RTSS.
 
 **"VitaMon ya está abierto":** VitaMon ya se está ejecutando, probablemente como icono en la bandeja del sistema (junto al reloj; mira también en la flecha de iconos ocultos). Solo puede haber uno a la vez.
 
@@ -137,7 +154,7 @@ build_exe.bat
 
 Crea un entorno en `server\.venv-build`, instala psutil, PyInstaller y Pillow, y genera `server\dist\VitaMon.exe` (un solo archivo, sin consola, con el icono de la app) y `server\dist\VitaMon-windows.zip` (la misma app en carpeta).
 
-GitHub Actions compila el VPK y el EXE en cada push. Al subir una etiqueta `v*` (por ejemplo `git tag v1.1.0 && git push origin v1.1.0`) los publica como *Release*.
+GitHub Actions compila el VPK y el EXE en cada push. Al subir una etiqueta `v*` (por ejemplo `git tag v1.3.0-beta.1 && git push origin v1.3.0-beta.1`) los publica como *Release*; si la etiqueta lleva guion, como beta. Antes de etiquetar, pon en `APP_VERSION` de [`server/version.py`](server/version.py) la etiqueta sin la `v` (el CI lo comprueba) y actualiza `VITA_VERSION` en `vita/CMakeLists.txt`.
 
 ### Usar el servidor desde la consola
 
@@ -196,6 +213,9 @@ cd server && python test_server_line.py
 # lectores de GPU con datos de ejemplo de LibreHardwareMonitor (NVIDIA, AMD, Intel)
 cd server && python test_gpu.py
 
+# lector de FPS de RivaTuner, aviso de actualizaciones y respuesta de la Vita
+cd server && python test_misc.py
+
 # ver lo que envía el PC (en otra terminal u otra máquina)
 python server/test_listener.py
 ```
@@ -205,10 +225,18 @@ python server/test_listener.py
 Una línea ASCII por datagrama UDP (puerto 10555), menor a 1024 bytes:
 
 ```
-VMON1;host=DESKTOP;cpun=Ryzen 5 5600G;gpun=RTX 3050;cpu=23.4;cores=12,30,...;ctemp=54.0;ram=55.1;ramu=8.8;ramt=16.0;gpu=12;gtemp=60;vramu=1.2;vramt=8.0;gclk=1500;up=123.4;down=456.7;disk=40.2;ts=1731258000
+VMON1;host=DESKTOP;cpun=Ryzen 5 5600G;gpun=RTX 3050;cpu=23.4;cores=12,30,...;ctemp=54.0;ram=55.1;ramu=8.8;ramt=16.0;gpu=12;gtemp=60;vramu=1.2;vramt=8.0;gclk=1500;up=123.4;down=456.7;disk=40.2;fps=144.0;ts=1731258000
 ```
 
 `-1` significa "no disponible". La app ignora claves desconocidas y cualquier datagrama que no empiece con `VMON1;`.
+
+La Vita responde a la dirección y puerto de origen, como mucho una vez por segundo:
+
+```
+VMONACK1;ver=1.3;batt=80;chg=0
+```
+
+`batt` es la batería de la Vita en % (`-1` en PS TV) y `chg` vale `1` mientras carga.
 
 
 ## Licencia

@@ -1,10 +1,14 @@
 #include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include <psp2/ctrl.h>
 #include <psp2/kernel/processmgr.h>
+#include <psp2/kernel/sysmem.h>
 #include <psp2/kernel/threadmgr.h>
 #include <psp2/power.h>
+#include <psp2/touch.h>
 
 #include "lang.h"
 #include "net.h"
@@ -24,7 +28,68 @@
 #define IDLE_SLEEP_US 300000000ULL
 #define TOAST_US 2000000ULL
 
+#define VMON_APP_VERSION "1.3"
+#define ACK_EVERY_US 1000000ULL   /* respuesta al PC: como mucho 1 por segundo */
+#define BATT_EVERY_US 10000000ULL /* la batería cambia despacio: leerla cada 10 s */
+
+/* Pantalla táctil (coordenadas del panel frontal: 1920x1088, el doble que la pantalla) */
+#define LONG_PRESS_US 700000ULL /* mantener pulsado: overlay de depuración (como △) */
+#define TAP_SLOP 40             /* px de pantalla que puede moverse el dedo en un toque */
+#define SWIPE_MIN 200           /* deslizar en horizontal: cambiar idioma (como SELECT) */
+
 static AppState st;
+
+typedef struct {
+    int down, moved, long_done;
+    int x0, y0, x, y;
+    SceUInt64 t0;
+} Touch;
+
+/* Gestos: toque = cambiar vista (□), mantener = depuración (△), deslizar = idioma (SELECT).
+ * Devuelve 1 si hubo un gesto (hay que redibujar). */
+static int touch_update(Touch *t, SceUInt64 now, SceUInt64 *toast_until, SceUInt64 *last_input)
+{
+    SceTouchData td;
+    if (sceTouchPeek(SCE_TOUCH_PORT_FRONT, &td, 1) < 0)
+        return 0;
+    if (td.reportNum > 0) {
+        int x = td.report[0].x / 2, y = td.report[0].y / 2;
+        *last_input = now;
+        if (!t->down) {
+            t->down = 1;
+            t->moved = t->long_done = 0;
+            t->x0 = t->x = x;
+            t->y0 = t->y = y;
+            t->t0 = now;
+            return 0;
+        }
+        t->x = x;
+        t->y = y;
+        if (abs(x - t->x0) > TAP_SLOP || abs(y - t->y0) > TAP_SLOP)
+            t->moved = 1;
+        if (!t->moved && !t->long_done && now - t->t0 >= LONG_PRESS_US) {
+            t->long_done = 1;
+            st.debug = !st.debug;
+            return 1;
+        }
+        return 0;
+    }
+    if (!t->down)
+        return 0;
+    t->down = 0; /* se levantó el dedo */
+    if (t->long_done)
+        return 0;
+    if (!t->moved) {
+        st.compact = !st.compact;
+        return 1;
+    }
+    if (abs(t->x - t->x0) >= SWIPE_MIN && abs(t->x - t->x0) > abs(t->y - t->y0)) {
+        lang_next();
+        *toast_until = now + TOAST_US;
+        return 1;
+    }
+    return 0;
+}
 
 void hist_push(History *h, float v)
 {
@@ -62,15 +127,21 @@ int main(void)
 {
     SceCtrlData pad, old;
     SceUInt64 last_rx = 0, last_input, last_draw = 0, pps_t0, ip_t0 = 0, toast_until = 0;
-    int got_any = 0, pps_count = 0, dirty = 1, moving = 0;
+    SceUInt64 last_ack = 0, batt_t0 = 0;
+    int got_any = 0, pps_count = 0, dirty = 1, moving = 0, is_tv;
     ConnState prev_conn = CONN_WAITING;
+    Touch touch;
 
     memset(&st, 0, sizeof(st));
+    memset(&touch, 0, sizeof(touch));
     vmon_stats_reset(&st.stats);
     memset(&old, 0, sizeof(old));
+    st.batt = -1;
 
     scePowerSetArmClockFrequency(111);
     sceCtrlSetSamplingMode(SCE_CTRL_MODE_DIGITAL);
+    sceTouchSetSamplingState(SCE_TOUCH_PORT_FRONT, SCE_TOUCH_SAMPLING_STATE_START);
+    is_tv = sceKernelIsPSVitaTV() == 1; /* la PS TV no tiene batería ni pantalla táctil */
     lang_init();
     ui_init();
     st.net_error = net_init();
@@ -98,6 +169,8 @@ int main(void)
             lang_next();
             toast_until = now + TOAST_US;
         }
+        if (!is_tv && touch_update(&touch, now, &toast_until, &last_input))
+            dirty = 1;
         toast = now < toast_until;
         if (toast != st.lang_toast) {
             st.lang_toast = toast;
@@ -124,6 +197,25 @@ int main(void)
             hist_push(&st.h_ctemp, st.stats.ctemp);
             hist_push(&st.h_gtemp, st.stats.gtemp);
             dirty = 1;
+            if (now - last_ack >= ACK_EVERY_US) { /* avisar al PC de que los datos llegan */
+                char ack[64];
+                snprintf(ack, sizeof(ack), "VMONACK1;ver=%s;batt=%d;chg=%d", VMON_APP_VERSION, st.batt,
+                         st.charging);
+                net_reply(ack);
+                last_ack = now;
+            }
+        }
+
+        if (!is_tv && (batt_t0 == 0 || now - batt_t0 >= BATT_EVERY_US)) {
+            int b = scePowerGetBatteryLifePercent(), c = scePowerIsBatteryCharging() ? 1 : 0;
+            if (b < 0 || b > 100)
+                b = -1;
+            if (b != st.batt || c != st.charging) {
+                st.batt = b;
+                st.charging = c;
+                dirty = 1;
+            }
+            batt_t0 = now;
         }
         if (now - pps_t0 >= 1000000ULL) {
             st.pps = pps_count;
