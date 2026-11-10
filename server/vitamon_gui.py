@@ -15,6 +15,7 @@ import threading
 import tkinter as tk
 from tkinter import messagebox, ttk
 
+import gpu
 import vitamon_server as vs
 from i18n import LANGS, Translator
 
@@ -137,7 +138,7 @@ class App:
         self.sender = None
         self.stop_evt = None
         self.thread = None
-        self.gpu_ok = None
+        self.gpu_src = None  # fuente de la GPU: None = aún no se sabe, False = ninguna
         self.lhm_ok = None
         self.labels = []  # (widget, clave) para retraducir al cambiar de idioma
         self.tray = None  # pystray.Icon mientras la opción de bandeja esté activa
@@ -349,11 +350,19 @@ class App:
                 lbl.configure(text="…", fg="#888")
             else:
                 lbl.configure(text=self.t("ok") if ok else self.t("missing"), fg="#1e8e3e" if ok else "#c5221f")
-        show(self.gpu_lbl, self.gpu_ok)
+        # GPU: muestra de dónde salen los datos (nvidia-smi / LibreHardwareMonitor / Windows)
+        if self.gpu_src is None:
+            self.gpu_lbl.configure(text="…", fg="#888")
+        elif not self.gpu_src:
+            self.gpu_lbl.configure(text=self.t("missing"), fg="#c5221f")
+        else:
+            self.gpu_lbl.configure(text=self.gpu_src, fg="#a15c00" if self.gpu_src == "Windows" else "#1e8e3e")
         show(self.lhm_lbl, self.lhm_ok)
         tips = []
-        if self.gpu_ok is False:
+        if self.gpu_src is False:
             tips.append(self.t("gpu_help"))
+        elif self.gpu_src == "Windows":
+            tips.append(self.t("gpu_windows_help"))
         if self.lhm_ok is False and sys.platform == "win32":
             tips.append(self.t("lhm_help"))
         self.src_help.configure(text="\n".join(tips))
@@ -393,10 +402,18 @@ class App:
 
     def _check_sources_async(self):
         def work():
-            gpu = vs.read_gpu_nvidia() is not None
-            lhm = vs.read_lhm("http://localhost:8085/data.json") is not None if sys.platform == "win32" \
-                else vs.read_psutil_temp() is not None
-            self.events.put(("sources", gpu, lhm))
+            tree = vs.read_lhm_tree("http://localhost:8085/data.json") if sys.platform == "win32" else None
+            if vs.read_gpu_nvidia() is not None:
+                src = "nvidia-smi"
+            elif tree and gpu.lhm_gpus(tree):
+                src = "LibreHardwareMonitor"
+            elif sys.platform == "win32" and gpu.WindowsGpu().ok:
+                src = "Windows"
+            else:
+                src = False
+            lhm = vs.find_lhm_cpu_temp(tree) is not None if tree else \
+                (vs.read_psutil_temp() is not None if sys.platform != "win32" else False)
+            self.events.put(("sources", src, lhm))
         threading.Thread(target=work, daemon=True).start()
 
     def toggle(self):
@@ -458,9 +475,9 @@ class App:
                     self.now.configure(text=(
                         f"{self.t('now')}:  CPU {fmt_pct(s['cpu'])} {fmt_temp(s['ctemp'])}   "
                         f"GPU {fmt_pct(s['gpu'])} {fmt_temp(s['gtemp'])}   RAM {fmt_pct(s['ram'])}"))
-                    gpu, lhm = s["gpu"] >= 0, s["ctemp"] >= 0
-                    if (gpu, lhm) != (self.gpu_ok, self.lhm_ok):
-                        self.gpu_ok, self.lhm_ok = gpu, lhm
+                    src, lhm = s.get("gsrc") or False, s["ctemp"] >= 0
+                    if (src, lhm) != (self.gpu_src, self.lhm_ok):
+                        self.gpu_src, self.lhm_ok = src, lhm
                         self._refresh_sources()
                 elif ev[0] == "error":
                     _, kind, exc = ev
@@ -470,7 +487,7 @@ class App:
                         self.log(msg)
                         last_err = msg
                 elif ev[0] == "sources":
-                    self.gpu_ok, self.lhm_ok = ev[1], ev[2]
+                    self.gpu_src, self.lhm_ok = ev[1], ev[2]
                     self._refresh_sources()
                 elif ev[0] == "tray":
                     if ev[1] == "show":

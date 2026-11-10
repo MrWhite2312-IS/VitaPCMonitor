@@ -13,6 +13,8 @@ import urllib.request
 
 import psutil
 
+import gpu
+
 NA = -1
 NVIDIA_CMD = [
     "nvidia-smi",
@@ -23,7 +25,7 @@ RETRY_SECS = 30
 LHM_SENSORS = ["Core (Tctl/Tdie)", "Tctl/Tdie", "CPU Package", "Package"]
 
 
-# ---------- GPU (aislado para poder sumar AMD/Intel después) ----------
+# ---------- GPU NVIDIA (AMD e Intel: ver gpu.py) ----------
 
 def read_gpu_nvidia():
     """Devuelve dict gpu/gtemp/vramu/vramt/gclk, o None si nvidia-smi no está o falla."""
@@ -80,13 +82,19 @@ def find_lhm_cpu_temp(node):
     return None
 
 
-def read_lhm(url):
-    """Temperatura de CPU desde el web server de LibreHardwareMonitor, o None."""
+def read_lhm_tree(url):
+    """Árbol JSON completo del web server de LibreHardwareMonitor, o None."""
     try:
         with urllib.request.urlopen(url, timeout=1) as resp:
-            return find_lhm_cpu_temp(json.load(resp))
+            return json.load(resp)
     except (OSError, ValueError):
         return None
+
+
+def read_lhm(url):
+    """Temperatura de CPU desde el web server de LibreHardwareMonitor, o None."""
+    tree = read_lhm_tree(url)
+    return find_lhm_cpu_temp(tree) if tree is not None else None
 
 
 def read_psutil_temp():
@@ -154,10 +162,13 @@ def read_gpu_name():
     if raw:
         return short_name(raw[0])
     if sys.platform == "win32":
+        # AMD / Intel: la tarjeta con más VRAM dedicada (la misma que eligen los lectores de gpu.py)
+        adapters = gpu.dxgi_adapters()
+        if adapters:
+            return short_name(max(adapters, key=lambda a: a[2])[0])
         out = _run(["powershell", "-NoProfile", "-Command",
                     "(Get-CimInstance Win32_VideoController).Name"]).strip().splitlines()
-        # preferir una GPU dedicada si hay varias
-        out = sorted((l.strip() for l in out if l.strip()), key=lambda l: ("NVIDIA" not in l and "Radeon RX" not in l))
+        out = [l.strip() for l in out if l.strip()]
         if out:
             return short_name(out[0])
     return ""
@@ -170,7 +181,10 @@ class Collector:
         self.lhm_url = lhm_url
         self.warn = warn
         self.gpu_ok = False
+        self.gpu_source = None  # "nvidia-smi", "LibreHardwareMonitor", "Windows" o None
         self.lhm_ok = False
+        self.nvidia = read_gpu_nvidia() is not None
+        self.win_gpu = None  # gpu.WindowsGpu, solo si no hay nvidia-smi
         self.host = re.sub(r"[;=\s]", "-", socket.gethostname())[:60]
         self.cpu_name = read_cpu_name()
         self.gpu_name = read_gpu_name()
@@ -193,28 +207,49 @@ class Collector:
         # busy_time solo existe en Linux/BSD; en Windows se aproxima con read_time + write_time
         return getattr(d, "busy_time", None) or (d.read_time + d.write_time)
 
-    def _gpu(self, now):
-        if now < self.gpu_next_try:
-            return None
-        g = read_gpu_nvidia()
-        self.gpu_ok = g is not None
-        if g is None:
+    def _gpu(self, now, tree):
+        """Datos de GPU, de la mejor fuente disponible:
+        1. nvidia-smi (NVIDIA)  2. LibreHardwareMonitor (cualquier marca, con temperatura)
+        3. contadores de Windows (cualquier marca, sin temperatura ni reloj)."""
+        if self.nvidia and now >= self.gpu_next_try:
+            g = read_gpu_nvidia()
+            if g is not None:
+                self.gpu_ok, self.gpu_source = True, "nvidia-smi"
+                return g
             self.gpu_next_try = now + RETRY_SECS
+        lhm = gpu.pick_gpu(gpu.lhm_gpus(tree)) if tree else None
+        win = None
+        if sys.platform == "win32":
+            if self.win_gpu is None:
+                self.win_gpu = gpu.WindowsGpu()
+            win = self.win_gpu.sample()
+        if lhm and win:  # LHM manda; Windows rellena lo que falte (p. ej. VRAM en algunas Intel)
+            lhm = {k: (v if v >= 0 else win.get(k, NA)) if isinstance(v, (int, float)) else v
+                   for k, v in lhm.items()}
+        g = lhm or win
+        self.gpu_ok = g is not None
+        self.gpu_source = "LibreHardwareMonitor" if lhm else "Windows" if win else None
         return g
 
-    def _cpu_temp(self, now):
-        if sys.platform != "win32":
-            return read_psutil_temp()
-        if now < self.lhm_next_try:
+    def _lhm_tree(self, now):
+        """Árbol de LHM (una lectura por muestra para CPU y GPU); None si no responde."""
+        if sys.platform != "win32" or now < self.lhm_next_try:
             return None
-        t = read_lhm(self.lhm_url)
-        self.lhm_ok = t is not None
-        if t is None:
+        tree = read_lhm_tree(self.lhm_url)
+        if tree is None:
+            self.lhm_ok = False
             self.lhm_next_try = now + RETRY_SECS
             if not self.lhm_warned:
                 self.warn(f"[aviso] LibreHardwareMonitor no responde en {self.lhm_url}: ctemp=-1 "
-                      "(ábrelo como admin y activa Options > Remote Web Server > Run)")
+                          "(ábrelo como admin y activa Options > Remote Web Server > Run)")
                 self.lhm_warned = True
+        return tree
+
+    def _cpu_temp(self, tree):
+        if sys.platform != "win32":
+            return read_psutil_temp()
+        t = find_lhm_cpu_temp(tree) if tree is not None else None
+        self.lhm_ok = t is not None
         return t
 
     def sample(self):
@@ -236,8 +271,9 @@ class Collector:
             disk = min(100.0, max(0.0, (busy - self.last_disk) / (dt * 1000) * 100))
         self.last_disk = busy
 
-        ctemp = self._cpu_temp(now)
-        gpu = self._gpu(now) or {}
+        tree = self._lhm_tree(now)
+        ctemp = self._cpu_temp(tree)
+        g = self._gpu(now, tree) or {}
 
         return {
             "host": self.host,
@@ -249,11 +285,12 @@ class Collector:
             "ram": vm.percent,
             "ramu": (vm.total - vm.available) / 2**30,
             "ramt": vm.total / 2**30,
-            "gpu": gpu.get("gpu", NA),
-            "gtemp": gpu.get("gtemp", NA),
-            "vramu": gpu.get("vramu", NA),
-            "vramt": gpu.get("vramt", NA),
-            "gclk": gpu.get("gclk", NA),
+            "gpu": g.get("gpu", NA),
+            "gtemp": g.get("gtemp", NA),
+            "vramu": g.get("vramu", NA),
+            "vramt": g.get("vramt", NA),
+            "gclk": g.get("gclk", NA),
+            "gsrc": self.gpu_source,  # solo para la ventana; no va en la línea del protocolo
             "up": max(up, 0.0),
             "down": max(down, 0.0),
             "disk": disk,
@@ -338,7 +375,8 @@ def main():
     print(f"  puerto:      {args.port}")
     print(f"  modo:        {'unicast -> ' + args.target if args.target else 'broadcast'}")
     print("  psutil:      OK")
-    print(f"  nvidia-smi:  {'OK' if read_gpu_nvidia() else 'no'}")
+    print(f"  GPU:         {sender.collector.gpu_name or '?'}")
+    print(f"  nvidia-smi:  {'OK' if sender.collector.nvidia else 'no (AMD/Intel: LibreHardwareMonitor o contadores de Windows)'}")
     if sys.platform == "win32":
         print(f"  LHM:         {'OK' if read_lhm(args.lhm_url) is not None else 'no'}")
     else:

@@ -80,9 +80,17 @@ Windows no da la temperatura de la CPU a programas normales, así que VitaMon la
 
 Sin esto, la temperatura de la CPU aparece como `--`.
 
-### GPU: solo NVIDIA
+### GPU: NVIDIA, AMD Radeon e Intel
 
-La GPU se lee con `nvidia-smi`, que viene con el driver de NVIDIA. Con GPU AMD o Intel, o si `nvidia-smi` no está en el PATH, la GPU aparece como `--` (el nombre del modelo sí aparece; VitaMon reintenta cada 30 s).
+VitaMon usa la mejor fuente que encuentra. La ventana de VitaMon muestra cuál está usando:
+
+| Fuente | Funciona con | Carga | VRAM | Temperatura | Reloj |
+|--------|--------------|:-----:|:----:|:-----------:|:-----:|
+| `nvidia-smi` (viene con el driver de NVIDIA) | NVIDIA | ✓ | ✓ | ✓ | ✓ |
+| LibreHardwareMonitor (el mismo de la temperatura de la CPU) | NVIDIA, AMD, Intel | ✓ | ✓ | ✓ | ✓ |
+| Contadores de rendimiento de Windows (sin instalar nada) | cualquier GPU | ✓ | ✓ | – | – |
+
+Con **AMD o Intel**, abre LibreHardwareMonitor (ver arriba) para tener temperatura y reloj. Sin él tendrás igualmente la carga y la VRAM, como en el Administrador de tareas. Si el PC tiene gráfica integrada y dedicada, VitaMon muestra la que tiene más memoria dedicada.
 
 ---
 
@@ -101,7 +109,7 @@ La GPU se lee con `nvidia-smi`, que viene con el driver de NVIDIA. Con GPU AMD o
 
 **Temperatura de la CPU en `--`:** LibreHardwareMonitor no está abierto, no se abrió como administrador o el *Remote Web Server* está apagado.
 
-**GPU en `--`:** no es una GPU NVIDIA o `nvidia-smi` no funciona. Prueba a ejecutar `nvidia-smi` en una terminal.
+**Temperatura o reloj de la GPU en `--`:** con AMD/Intel, LibreHardwareMonitor no está abierto (la ventana muestra "Windows" como fuente de la GPU). Las gráficas integradas de Intel normalmente no informan de su temperatura. Con NVIDIA, comprueba que `nvidia-smi` funciona en una terminal.
 
 **"VitaMon ya está abierto":** VitaMon ya se está ejecutando, probablemente como icono en la bandeja del sistema (junto al reloj; mira también en la flecha de iconos ocultos). Solo puede haber uno a la vez.
 
@@ -184,6 +192,9 @@ cd vita/tests && gcc -std=c11 -Wall -I../src ../src/lang.c test_lang.c -o test_l
 
 # una línea real del servidor pasada por el parser C
 cd server && python test_server_line.py
+
+# lectores de GPU con datos de ejemplo de LibreHardwareMonitor (NVIDIA, AMD, Intel)
+cd server && python test_gpu.py
 
 # ver lo que envía el PC (en otra terminal u otra máquina)
 python server/test_listener.py
