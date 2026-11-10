@@ -1,0 +1,5 @@
+vita/build/
+__pycache__/
+*.pyc
+.venv/
+vita/tests/test_protocol
