@@ -8,6 +8,8 @@ El PC envía sus datos por la red WiFi una vez por segundo y la Vita los muestra
 
 [English](README.md) · **Español**
 
+<p align="center"><img src="docs/vita.jpg" alt="VitaMon en una PS Vita: carga y temperatura de CPU y GPU, gráficas, RAM, red y disco" width="720"></p>
+
 ---
 
 ## Inicio rápido
