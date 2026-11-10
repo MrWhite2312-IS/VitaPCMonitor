@@ -7,7 +7,7 @@
 CPU, GPU, temperatures, RAM, network and disk on the Vita's screen, updated every second over WiFi.
 
 [![Build](https://github.com/MrWhite2312-IS/VitaPCMonitor/actions/workflows/build.yml/badge.svg)](https://github.com/MrWhite2312-IS/VitaPCMonitor/actions/workflows/build.yml)
-[![Latest release](https://img.shields.io/github/v/release/MrWhite2312-IS/VitaPCMonitor?label=download)](https://github.com/MrWhite2312-IS/VitaPCMonitor/releases/latest)
+[![Latest release](https://img.shields.io/github/v/release/MrWhite2312-IS/VitaPCMonitor?include_prereleases&label=download)](https://github.com/MrWhite2312-IS/VitaPCMonitor/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 **English** · [Español](README.es.md)
@@ -40,7 +40,9 @@ CPU, GPU, temperatures, RAM, network and disk on the Vita's screen, updated ever
 
 ### 1. Download
 
-Get both files from the [latest release](https://github.com/MrWhite2312-IS/VitaPCMonitor/releases/latest):
+> **Beta:** VitaMon is in public beta. If something doesn't work, please [open an issue](https://github.com/MrWhite2312-IS/VitaPCMonitor/issues) with your Vita firmware, Windows version and GPU.
+
+Get both files from the [latest release](https://github.com/MrWhite2312-IS/VitaPCMonitor/releases) (the newest one at the top of the list):
 
 | File | Goes on |
 |------|---------|

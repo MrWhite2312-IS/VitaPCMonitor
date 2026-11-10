@@ -12,6 +12,8 @@ El PC envía sus datos por la red WiFi una vez por segundo y la Vita los muestra
 
 ## Inicio rápido
 
+> **Beta:** VitaMon está en beta pública. Si algo no funciona, [abre un issue](https://github.com/MrWhite2312-IS/VitaPCMonitor/issues) con el firmware de tu Vita, tu versión de Windows y tu GPU.
+
 Necesitas:
 
 - Una PS Vita con **HENkaku/Ensō** y **VitaShell**.
@@ -19,7 +21,7 @@ Necesitas:
 
 ### 1. Instala la app en la Vita
 
-1. Descarga `VitaMon.vpk` de la [última versión](https://github.com/MrWhite2312-IS/VitaPCMonitor/releases/latest) (o [compílalo](#compilar-la-app-de-la-vita)).
+1. Descarga `VitaMon.vpk` de la [última versión](https://github.com/MrWhite2312-IS/VitaPCMonitor/releases) (o [compílalo](#compilar-la-app-de-la-vita)).
 2. Pásalo a la Vita con VitaShell:
    - **Por WiFi (FTP):** en VitaShell pulsa SELECT. Abre en el explorador del PC la dirección `ftp://IP:1337` que aparece en la Vita y copia el VPK a `ux0:data/`.
    - **Por USB:** en VitaShell pulsa START → *USB connection* y copia el VPK a la unidad que aparece en el PC.
@@ -27,7 +29,7 @@ Necesitas:
 
 ### 2. Abre VitaMon en el PC
 
-1. Descarga `VitaMon.exe` de la [última versión](https://github.com/MrWhite2312-IS/VitaPCMonitor/releases/latest) (o genéralo con [build_exe.bat](#generar-vitamonexe)). Ponlo en cualquier carpeta; no necesita instalación.
+1. Descarga `VitaMon.exe` de la [última versión](https://github.com/MrWhite2312-IS/VitaPCMonitor/releases) (o genéralo con [build_exe.bat](#generar-vitamonexe)). Ponlo en cualquier carpeta; no necesita instalación.
 2. Haz doble clic en `VitaMon.exe`. Se abre una ventana y empieza a enviar datos solo.
 3. La primera vez Windows pregunta si permite el acceso a la red: marca **Redes privadas** y acepta.
 

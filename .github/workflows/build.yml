@@ -70,3 +70,5 @@ jobs:
             VitaMon.vpk
             VitaMon.exe
           generate_release_notes: true
+          # etiquetas como v1.2.0-beta.1 se publican como beta (pre-release)
+          prerelease: ${{ contains(github.ref_name, '-') }}
