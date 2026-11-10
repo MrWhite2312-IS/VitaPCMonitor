@@ -13,7 +13,7 @@ include("$ENV{VITASDK}/share/vita.cmake" REQUIRED)
 
 set(VITA_APP_NAME "VitaMon")
 set(VITA_TITLEID  "VMON00001")
-set(VITA_VERSION  "01.10")
+set(VITA_VERSION  "01.20")
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -O2")
