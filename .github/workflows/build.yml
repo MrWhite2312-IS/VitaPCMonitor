@@ -24,6 +24,9 @@ jobs:
       - name: Server line through the C parser
         working-directory: server
         run: python test_server_line.py
+      - name: GPU readers (LibreHardwareMonitor: NVIDIA, AMD, Intel)
+        working-directory: server
+        run: python test_gpu.py
 
   vpk:
     runs-on: ubuntu-latest

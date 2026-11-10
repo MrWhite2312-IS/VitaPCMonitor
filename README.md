@@ -19,7 +19,7 @@ CPU, GPU, temperatures, RAM, network and disk on the Vita's screen, updated ever
 ## Features
 
 - **CPU:** total load, a bar per thread, temperature and the CPU model name.
-- **GPU (NVIDIA):** load, temperature, VRAM used/total and core clock.
+- **GPU (NVIDIA, AMD Radeon, Intel):** load, temperature, VRAM used/total and core clock.
 - **RAM, network** (upload/download KB/s) and **disk** activity.
 - **60-second graphs** for CPU and GPU load and temperature.
 - **Compact view** with big load and temperature numbers, color bars and mini graphs, readable from across the desk.
@@ -33,7 +33,7 @@ CPU, GPU, temperatures, RAM, network and disk on the Vita's screen, updated ever
 
 - A PS Vita (or PS TV) with **HENkaku / Ensō** and **VitaShell**.
 - A **Windows 10/11** PC on the same network as the Vita (WiFi or Ethernet).
-- Optional: an **NVIDIA** GPU for GPU stats, and **LibreHardwareMonitor** for CPU temperature ([details](#optional-sensors)).
+- Optional: **LibreHardwareMonitor** for CPU temperature, and for GPU temperature on AMD/Intel ([details](#optional-sensors)).
 
 ## Quick start
 
@@ -103,9 +103,17 @@ Windows does not expose CPU temperature to normal programs, so VitaMon reads it 
 
 Without it, CPU temperature shows as `--`. The VitaMon window tells you whether it is detected.
 
-### GPU: NVIDIA only (for now)
+### GPU: NVIDIA, AMD Radeon and Intel
 
-GPU stats come from `nvidia-smi`, which is installed with the NVIDIA driver. On AMD or Intel GPUs the GPU panel shows `--` (the model name still appears). AMD/Intel support is a welcome contribution: the GPU reader is isolated in `read_gpu_nvidia()` in [`server/vitamon_server.py`](server/vitamon_server.py).
+VitaMon uses the best source it finds. The VitaMon window shows which one is in use:
+
+| Source | Works with | Load | VRAM | Temperature | Clock |
+|--------|-----------|:----:|:----:|:-----------:|:-----:|
+| `nvidia-smi` (comes with the NVIDIA driver) | NVIDIA | ✓ | ✓ | ✓ | ✓ |
+| LibreHardwareMonitor (the same one used for CPU temperature) | NVIDIA, AMD, Intel | ✓ | ✓ | ✓ | ✓ |
+| Windows performance counters (nothing to install) | any GPU | ✓ | ✓ | – | – |
+
+With **AMD or Intel**, run LibreHardwareMonitor (see above) to get temperature and clock. Without it you still get load and VRAM, as shown in Task Manager. If the PC has both integrated and dedicated graphics, VitaMon shows the one with the most dedicated memory.
 
 ## Troubleshooting
 
@@ -122,7 +130,7 @@ GPU stats come from `nvidia-smi`, which is installed with the NVIDIA driver. On 
 
 **CPU temperature is `--`:** LibreHardwareMonitor isn't running, wasn't started as administrator, or its Remote Web Server is off.
 
-**GPU is `--`:** not an NVIDIA GPU, or `nvidia-smi` doesn't work. Try running `nvidia-smi` in a terminal.
+**GPU temperature or clock is `--`:** on AMD/Intel, LibreHardwareMonitor isn't running (the window shows "Windows" as the GPU source). Integrated Intel graphics usually don't report a temperature at all. On NVIDIA, check that `nvidia-smi` runs in a terminal.
 
 **"VitaMon is already open":** VitaMon is already running, probably as an icon in the system tray (next to the clock; check the hidden icons arrow). Only one can run at a time.
 
@@ -132,8 +140,9 @@ GPU stats come from `nvidia-smi`, which is installed with the NVIDIA driver. On 
 
 ```
 psutil ────────────────┐
-nvidia-smi ────────────┼ ──► VitaMon.exe ──── UDP :10555, 1 line/s ───► VitaMon
-LibreHardwareMonitor ──┘        (PC)                                    (PS Vita, C + vita2d)
+nvidia-smi ────────────┤
+LibreHardwareMonitor ──┼ ──► VitaMon.exe ──── UDP :10555, 1 line/s ───► VitaMon
+Windows GPU counters ──┘        (PC)                                    (PS Vita, C + vita2d)
 ```
 
 The PC sends one plain-text line per second as a UDP broadcast (or to a single IP). The Vita listens on port 10555, parses the line and draws it with [vita2d](https://github.com/xerpi/libvita2d). To save battery, the app runs the Vita's CPU at 111 MHz, redraws only when data or the screen changes (animations at up to 30 fps instead of a constant 60), sleeps between checks, and stops keeping the screen awake after 5 minutes with no data and no button presses, so the Vita can dim and suspend as configured.
@@ -214,6 +223,8 @@ cd vita/tests && gcc -std=c11 -Wall -I../src ../src/protocol.c test_protocol.c -
 cd vita/tests && gcc -std=c11 -Wall -I../src ../src/lang.c test_lang.c -o test_lang && ./test_lang
 # a real server line through the C parser
 cd server && python test_server_line.py
+# GPU readers with sample LibreHardwareMonitor data (NVIDIA, AMD, Intel)
+cd server && python test_gpu.py
 # see what the PC is sending (from another terminal or machine)
 python server/test_listener.py
 ```
@@ -223,7 +234,7 @@ python server/test_listener.py
 Issues and pull requests are welcome. Some good places to start:
 
 - **New language or translation fixes:** the Vita strings are in [`vita/src/lang.c`](vita/src/lang.c) (add the language to the `Lang` enum in `lang.h`), and the PC strings are in [`server/i18n.py`](server/i18n.py). `test_lang` checks that nothing is missing. The Vita's built-in font covers Latin scripts (accents, ñ, ç, ß) but not Japanese, Chinese or Korean.
-- **AMD / Intel GPU support** on the PC side.
+- **Testing on AMD and Intel GPUs:** support is new and has only been checked against an AMD integrated GPU. Reports with a screenshot of the VitaMon window's "Data sources" are very helpful. The readers are in [`server/gpu.py`](server/gpu.py).
 - **Linux/macOS sender:** the console server already runs there (CPU temperature through psutil), but it hasn't been tested much.
 
 ## License
