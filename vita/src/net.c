@@ -1,5 +1,6 @@
 #include "net.h"
 
+#include <stdio.h>
 #include <string.h>
 
 #include <psp2/net/net.h>
@@ -10,6 +11,19 @@ static char net_mem[1024 * 1024];
 static int sock = -1;
 static int net_up, netctl_up, sysmod_up;
 static char ip[16];
+static char err[96];
+
+const char *net_error_text(void)
+{
+    return err;
+}
+
+/* Guarda el primer error (paso + código) para mostrarlo en pantalla. */
+static void note(const char *step, int r)
+{
+    if (!err[0])
+        snprintf(err, sizeof(err), "%s: 0x%08X", step, (unsigned int)r);
+}
 
 int net_init(void)
 {
@@ -17,34 +31,49 @@ int net_init(void)
     SceNetSockaddrIn addr;
     int r;
 
+    /* sysmodule, sceNetInit y sceNetCtlInit pueden fallar si otro ya los inicializó:
+     * se anota el error y se sigue; lo que manda es si el socket abre. */
     if ((r = sceSysmoduleLoadModule(SCE_SYSMODULE_NET)) < 0)
-        return r;
-    sysmod_up = 1;
+        note("sceSysmoduleLoadModule", r);
+    else
+        sysmod_up = 1;
 
     param.memory = net_mem;
     param.size = sizeof(net_mem);
     param.flags = 0;
     r = sceNetInit(&param);
-    if (r < 0 && r != (int)SCE_NET_ERROR_EBUSY) /* EBUSY = ya inicializado */
-        return r;
-    net_up = (r >= 0);
+    if (r >= 0)
+        net_up = 1;
+    else if (r != (int)SCE_NET_ERROR_EBUSY) /* EBUSY = ya inicializado */
+        note("sceNetInit", r);
 
     if ((r = sceNetCtlInit()) < 0)
-        return r;
-    netctl_up = 1;
+        note("sceNetCtlInit", r);
+    else
+        netctl_up = 1;
     net_refresh_ip();
 
-    sock = sceNetSocket("vitamon", SCE_NET_AF_INET, SCE_NET_SOCK_DGRAM, SCE_NET_IPPROTO_UDP);
-    if (sock < 0)
-        return sock;
+    r = sceNetSocket("vitamon", SCE_NET_AF_INET, SCE_NET_SOCK_DGRAM, SCE_NET_IPPROTO_UDP);
+    if (r < 0) {
+        err[0] = '\0';
+        note("sceNetSocket", r);
+        return r;
+    }
+    sock = r;
 
     memset(&addr, 0, sizeof(addr));
+    addr.sin_len = sizeof(addr);
     addr.sin_family = SCE_NET_AF_INET;
     addr.sin_addr.s_addr = sceNetHtonl(SCE_NET_INADDR_ANY);
     addr.sin_port = sceNetHtons(VMON_PORT);
-    if ((r = sceNetBind(sock, (SceNetSockaddr *)&addr, sizeof(addr))) < 0)
+    if ((r = sceNetBind(sock, (SceNetSockaddr *)&addr, sizeof(addr))) < 0) {
+        err[0] = '\0';
+        note("sceNetBind", r);
+        sceNetSocketClose(sock);
+        sock = -1;
         return r;
-    return 0;
+    }
+    return 0; /* puede haber un aviso en err aunque todo funcione */
 }
 
 void net_refresh_ip(void)

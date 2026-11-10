@@ -219,9 +219,9 @@ static void draw_waiting(const AppState *st, const char *ip)
     char b[96];
     int cx = SCREEN_W / 2;
     text_center(cx, 170, C_TEXT, 2.0f, "Esperando datos...");
-    if (st->net_error) {
-        snprintf(b, sizeof(b), "Error de red: 0x%08X", (unsigned int)st->net_error);
-        text_center(cx, 240, C_RED, 1.2f, b);
+    if (net_error_text()[0]) {
+        snprintf(b, sizeof(b), "%s %s", st->net_error ? "Error de red:" : "Aviso:", net_error_text());
+        text_center(cx, 230, st->net_error ? C_RED : C_AMBER, 1.1f, b);
     }
     snprintf(b, sizeof(b), "IP de la Vita: %s", ip[0] ? ip : "(sin WiFi)");
     text_center(cx, 280, C_TEXT, 1.3f, b);

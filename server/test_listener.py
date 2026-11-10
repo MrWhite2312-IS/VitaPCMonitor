@@ -6,7 +6,7 @@ import socket
 import time
 
 ap = argparse.ArgumentParser()
-ap.add_argument("--port", type=int, default=50555)
+ap.add_argument("--port", type=int, default=10555)
 args = ap.parse_args()
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)

@@ -207,7 +207,7 @@ def build_line(s):
 
 def main():
     ap = argparse.ArgumentParser(description="Servidor VitaMon (PC -> PS Vita por UDP)")
-    ap.add_argument("--port", type=int, default=50555)
+    ap.add_argument("--port", type=int, default=10555)
     ap.add_argument("--interval", type=float, default=1.0)
     ap.add_argument("--target", help="IP de la Vita (unicast) si el router bloquea broadcast")
     ap.add_argument("--lhm-url", default="http://localhost:8085/data.json")

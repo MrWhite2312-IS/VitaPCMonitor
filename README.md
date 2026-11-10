@@ -55,7 +55,7 @@ python vitamon_server.py --verbose
 
 Al arrancar muestra el puerto, el modo (broadcast o unicast) y qué fuentes encontró (psutil, nvidia-smi, LHM).
 
-Opciones: `--port 50555`, `--interval 1.0`, `--target IP_VITA`, `--lhm-url http://localhost:8085/data.json`, `--verbose`.
+Opciones: `--port 10555`, `--interval 1.0`, `--target IP_VITA`, `--lhm-url http://localhost:8085/data.json`, `--verbose`.
 
 `run_vitamon.bat` lo inicia con doble clic (si existe `server\.venv`, lo activa primero).
 
@@ -64,7 +64,7 @@ Opciones: `--port 50555`, `--interval 1.0`, `--target IP_VITA`, `--lhm-url http:
 La primera vez, Windows pregunta si permite Python: marca **Redes privadas**. Si no preguntó, crea una regla de salida desde PowerShell como administrador:
 
 ```powershell
-New-NetFirewallRule -DisplayName "VitaMon UDP" -Direction Outbound -Protocol UDP -RemotePort 50555 -Action Allow -Profile Private
+New-NetFirewallRule -DisplayName "VitaMon UDP" -Direction Outbound -Protocol UDP -RemotePort 10555 -Action Allow -Profile Private
 ```
 
 Asegúrate de que tu red WiFi/Ethernet esté marcada como **Privada**.
