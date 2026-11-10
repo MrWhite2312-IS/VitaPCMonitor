@@ -47,7 +47,8 @@ Get both files from the [latest release](https://github.com/MrWhite2312-IS/VitaP
 | File | Goes on |
 |------|---------|
 | `VitaMon.vpk` | the PS Vita |
-| `VitaMon.exe` | the Windows PC |
+| `VitaMon.exe` | the Windows PC (single file) |
+| `VitaMon-windows.zip` | the Windows PC: the same app as a folder, if your antivirus complains about the single `.exe` |
 
 ### 2. Install on the Vita
 
@@ -58,7 +59,7 @@ Get both files from the [latest release](https://github.com/MrWhite2312-IS/VitaP
 
 ### 3. Run on the PC
 
-1. Put `VitaMon.exe` in any folder. It does not need to be installed.
+1. Put `VitaMon.exe` in any folder. It does not need to be installed. If you downloaded the `.zip`, extract it and keep the whole `VitaMon` folder together.
 2. Double-click it. A small window opens and starts sending right away.
 3. The first time, Windows asks about network access: allow it on **Private networks**.
 
@@ -125,7 +126,7 @@ GPU stats come from `nvidia-smi`, which is installed with the NVIDIA driver. On 
 
 **"VitaMon is already open":** there is already a VitaMon window, maybe minimized in the taskbar. Only one can run at a time.
 
-**Windows SmartScreen or antivirus warning:** the `.exe` is not code-signed, and Python apps packaged with PyInstaller sometimes trigger false positives. Click *More info → Run anyway*. You can check the source and the [build log](https://github.com/MrWhite2312-IS/VitaPCMonitor/actions/workflows/build.yml), or [build it yourself](#build-the-windows-app) or [run it from source](#run-from-source).
+**Windows SmartScreen or antivirus warning:** the `.exe` is not code-signed, and Python apps packaged with PyInstaller sometimes trigger false positives. Click *More info → Run anyway*. The folder version (`VitaMon-windows.zip`) tends to get fewer false positives than the single `.exe`. You can also check the source and the [build log](https://github.com/MrWhite2312-IS/VitaPCMonitor/actions/workflows/build.yml), or [build it yourself](#build-the-windows-app) or [run it from source](#run-from-source).
 
 ## How it works
 
@@ -180,7 +181,7 @@ From the `server` folder:
 build_exe.bat
 ```
 
-It creates a virtual environment in `server\.venv-build`, installs psutil, PyInstaller and Pillow, and writes `server\dist\VitaMon.exe` (a single file with no console).
+It creates a virtual environment in `server\.venv-build`, installs psutil, PyInstaller and Pillow, and writes `server\dist\VitaMon.exe` (a single file with no console) and `server\dist\VitaMon-windows.zip` (the same app as a folder).
 
 ### Build the Vita app
 

@@ -46,13 +46,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Build VitaMon.exe
+      - name: Build VitaMon.exe and VitaMon-windows.zip
         shell: cmd
         run: server\build_exe.bat
       - uses: actions/upload-artifact@v4
         with:
           name: VitaMon.exe
           path: server/dist/VitaMon.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: VitaMon-windows.zip
+          path: server/dist/VitaMon-windows.zip
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -69,6 +73,7 @@ jobs:
           files: |
             VitaMon.vpk
             VitaMon.exe
+            VitaMon-windows.zip
           generate_release_notes: true
           # etiquetas como v1.2.0-beta.1 se publican como beta (pre-release)
           prerelease: ${{ contains(github.ref_name, '-') }}
