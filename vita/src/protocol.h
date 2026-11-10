@@ -7,9 +7,11 @@
 #define VMON_MAX_LINE 1024
 #define VMON_MAX_CORES 32
 #define VMON_HOST_LEN 64
+#define VMON_NAME_LEN 48
 
 typedef struct {
     char host[VMON_HOST_LEN];
+    char cpu_name[VMON_NAME_LEN], gpu_name[VMON_NAME_LEN]; /* "" si el servidor no los manda */
     float cpu;
     float cores[VMON_MAX_CORES];
     int ncores;

@@ -104,6 +104,65 @@ def read_psutil_temp():
     return None
 
 
+# ---------- Nombres de CPU y GPU (se leen una vez al arrancar) ----------
+
+def _run(cmd):
+    try:
+        out = subprocess.run(cmd, capture_output=True, text=True, timeout=5,
+                             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        return out.stdout if out.returncode == 0 else ""
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+def short_name(name):
+    """'AMD Ryzen 5 5600G with Radeon Graphics' -> 'Ryzen 5 5600G'; apto para el protocolo."""
+    n = re.sub(r"\((R|TM|tm|r)\)|®|™", "", name or "")
+    n = re.sub(r"\s+@.*$", "", n)                                  # "@ 3.60GHz"
+    n = re.sub(r"\b\d+-Core Processor\b|\bProcessor\b|\bCPU\b", "", n)
+    n = re.sub(r"\bwith Radeon.*$", "", n)
+    n = re.sub(r"^\d+th Gen\s+", "", n.strip())                    # "12th Gen Intel Core i5-..."
+    n = re.sub(r"^(AMD|Intel|NVIDIA)\s+", "", n)
+    n = re.sub(r"^(GeForce|Core|Radeon)\s+(?=\S)", "", n)          # "GeForce RTX 3050" -> "RTX 3050"
+    n = re.sub(r"[;=]", " ", n)
+    return re.sub(r"\s+", " ", n).strip()[:40]
+
+
+def read_cpu_name():
+    raw = ""
+    if sys.platform == "win32":
+        try:
+            import winreg
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
+                                r"HARDWARE\DESCRIPTION\System\CentralProcessor\0") as k:
+                raw = winreg.QueryValueEx(k, "ProcessorNameString")[0]
+        except OSError:
+            pass
+    elif sys.platform.startswith("linux"):
+        try:
+            with open("/proc/cpuinfo", encoding="utf-8") as f:
+                raw = next((l.split(":", 1)[1] for l in f if l.startswith("model name")), "")
+        except OSError:
+            pass
+    elif sys.platform == "darwin":
+        raw = _run(["sysctl", "-n", "machdep.cpu.brand_string"])
+    return short_name(raw)
+
+
+def read_gpu_name():
+    raw = _run(["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"]).strip().splitlines()
+    if raw:
+        return short_name(raw[0])
+    if sys.platform == "win32":
+        out = _run(["powershell", "-NoProfile", "-Command",
+                    "(Get-CimInstance Win32_VideoController).Name"]).strip().splitlines()
+        # preferir una GPU dedicada si hay varias
+        out = sorted((l.strip() for l in out if l.strip()), key=lambda l: ("NVIDIA" not in l and "Radeon RX" not in l))
+        if out:
+            return short_name(out[0])
+    return ""
+
+
 # ---------- Recolector ----------
 
 class Collector:
@@ -113,6 +172,8 @@ class Collector:
         self.gpu_ok = False
         self.lhm_ok = False
         self.host = re.sub(r"[;=\s]", "-", socket.gethostname())[:60]
+        self.cpu_name = read_cpu_name()
+        self.gpu_name = read_gpu_name()
         self.gpu_next_try = 0.0
         self.lhm_next_try = 0.0
         self.lhm_warned = False
@@ -180,6 +241,8 @@ class Collector:
 
         return {
             "host": self.host,
+            "cpun": self.cpu_name,
+            "gpun": self.gpu_name,
             "cpu": sum(cores) / len(cores) if cores else NA,
             "cores": cores,
             "ctemp": ctemp if ctemp is not None else NA,
@@ -204,7 +267,8 @@ def fmt(v):
 
 def build_line(s):
     cores = ",".join(str(round(c)) for c in s["cores"])
-    parts = [f"host={s['host']}", f"cpu={fmt(s['cpu'])}", f"cores={cores}"]
+    parts = [f"host={s['host']}", f"cpun={s.get('cpun', '')}", f"gpun={s.get('gpun', '')}",
+             f"cpu={fmt(s['cpu'])}", f"cores={cores}"]
     for k in ("ctemp", "ram", "ramu", "ramt", "gpu", "gtemp", "vramu", "vramt", "gclk", "up", "down", "disk"):
         parts.append(f"{k}={fmt(s[k])}")
     parts.append(f"ts={s['ts']}")

@@ -63,6 +63,28 @@ static void text_center(int cx, int y, unsigned int c, float s, const char *t)
     text(cx - vita2d_pgf_text_width(font, s, t) / 2, y, c, s, t);
 }
 
+/* Dibuja t recortado con ".." si no cabe en max_w píxeles. */
+static void text_fit(int x, int y, int max_w, unsigned int c, float s, const char *t)
+{
+    char b[64];
+    int n;
+    if (vita2d_pgf_text_width(font, s, t) <= max_w) {
+        text(x, y, c, s, t);
+        return;
+    }
+    n = (int)strlen(t);
+    if (n > (int)sizeof(b) - 3)
+        n = (int)sizeof(b) - 3;
+    do {
+        n--;
+        while (n > 0 && ((unsigned char)t[n] & 0xC0) == 0x80) /* no cortar un carácter UTF-8 */
+            n--;
+        memcpy(b, t, n);
+        memcpy(b + n, "..", 3);
+    } while (n > 0 && vita2d_pgf_text_width(font, s, b) > max_w);
+    text(x, y, c, s, b);
+}
+
 /* -1 => "--" */
 static const char *fmtv(char *buf, size_t n, const char *fmt, float v)
 {
@@ -123,7 +145,7 @@ static void panel_head(int x, int y, int w, const char *title, const char *model
     int bw = w - 32 - 160;
     vita2d_draw_rectangle(x, y, w, 334, C_PANEL);
     text(x + 16, y + 30, C_TEXT, 1.1f, title);
-    text(x + 70, y + 30, C_MUTED, 1.0f, model);
+    text_fit(x + 70, y + 30, x + w - 16 - (x + 70), C_MUTED, 1.0f, model);
     bar(x + 16, y + 46, bw, 24, shown);
     text(x + 16 + bw + 12, y + 67, C_TEXT, 1.1f, fmtv(b, sizeof(b), "%.0f%%", pct));
     if (temp >= 0)
@@ -137,7 +159,7 @@ static void draw_cpu(const AppState *st, int x, int y, int w)
 {
     const VmonStats *s = &st->stats;
     int i, n = s->ncores;
-    panel_head(x, y, w, "CPU", "Ryzen 5 5600G", st->d_cpu, s->cpu, s->ctemp);
+    panel_head(x, y, w, "CPU", s->cpu_name, st->d_cpu, s->cpu, s->ctemp);
     if (n > 0) {
         int gap = 4, cw = (w - 32 - gap * (n - 1)) / n, top = y + 86, h = 60;
         for (i = 0; i < n; i++) {
@@ -156,7 +178,7 @@ static void draw_gpu(const AppState *st, int x, int y, int w)
 {
     const VmonStats *s = &st->stats;
     char b[64], u[16], t[16];
-    panel_head(x, y, w, "GPU", "RTX 3050", st->d_gpu, s->gpu, s->gtemp);
+    panel_head(x, y, w, "GPU", s->gpu_name, st->d_gpu, s->gpu, s->gtemp);
     snprintf(b, sizeof(b), "VRAM %s / %s GB", fmtv(u, sizeof(u), "%.1f", s->vramu),
              fmtv(t, sizeof(t), "%.1f", s->vramt));
     text(x + 16, y + 118, C_TEXT, 1.0f, b);

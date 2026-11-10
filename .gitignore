@@ -7,3 +7,6 @@ server/build/
 server/dist/
 server/*.spec
 .venv-build/
+.DS_Store
+.vscode/
+vita/tests/test_lang

@@ -67,6 +67,10 @@ int vmon_parse(const char *line, VmonStats *out)
             *eq = '\0';
             if (!strcmp(k, "host")) {
                 strncpy(s.host, v, VMON_HOST_LEN - 1);
+            } else if (!strcmp(k, "cpun")) {
+                strncpy(s.cpu_name, v, VMON_NAME_LEN - 1);
+            } else if (!strcmp(k, "gpun")) {
+                strncpy(s.gpu_name, v, VMON_NAME_LEN - 1);
             } else if (!strcmp(k, "cores")) {
                 parse_cores(v, &s);
             } else if (!strcmp(k, "ts")) {
