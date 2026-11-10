@@ -14,9 +14,7 @@ CPU, GPU, temperatures, RAM, network and disk on the Vita's screen, updated ever
 
 </div>
 
-<!-- Add a photo of the Vita running VitaMon here, e.g.:
-<p align="center"><img src="docs/vita.jpg" alt="VitaMon running on a PS Vita" width="640"></p>
--->
+<p align="center"><img src="docs/vita.jpg" alt="VitaMon running on a PS Vita: CPU and GPU load, temperatures, graphs, RAM, network and disk" width="720"></p>
 
 ## Features
 
